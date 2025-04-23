@@ -17,3 +17,6 @@ Route::get('/', function () {
 Route::get('/workflows', function () {
     return Inertia::render('Workflows');
 });
+Route::get('/create-new-workflow', function () {
+    return Inertia::render('CreateNewWorkflow');
+});

@@ -16,6 +16,7 @@ import Footer from '../components/footer'
 import Modal from '../components/modal'
 import ReusableButton from '../components/button'
 import { DropdownProvider } from '../components/context/DropdownContext'
+import WorkflowLayout from '../components/layout/WorkflowLayout'
 
 const workflows = Array.from({ length: 6 }, (_, i) => ({
     name: i % 2 === 0 ? 'Workflow of Whatsapp Trigger' : 'Workflow of Ziera',
@@ -29,107 +30,94 @@ export default function Workflows () {
     const [activeTab, setActiveTab] = useState('workflows')
     const [currentPage, setCurrentPage] = useState(1)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [isMobile, setIsMobile] = useState(false);
-    const itemsPerPage = 5;
+    const [isMobile, setIsMobile] = useState(false)
+    const itemsPerPage = 5
 
     useEffect(() => {
         const handleResize = () => {
-            setIsMobile(window.innerWidth <= 768);
-        };
+            setIsMobile(window.innerWidth <= 768)
+        }
 
-        handleResize();
-        window.addEventListener('resize', handleResize);
+        handleResize()
+        window.addEventListener('resize', handleResize)
 
         return () => {
-            window.removeEventListener('resize', handleResize);
-        };
-    }, []);
+            window.removeEventListener('resize', handleResize)
+        }
+    }, [])
 
     const filtered = workflows.filter(w =>
         w.name.toLowerCase().includes(search.toLowerCase())
-    );
+    )
 
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const totalPages = Math.ceil(filtered.length / itemsPerPage)
     const paginatedWorkflows = filtered.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
-    );
+    )
 
     return (
         <DropdownProvider>
-            <div className={`flex-1 p-6 bg-gradient-to-br from-blue-500 via-blue-300 to-blue-100 min-h-screen overflow-x-hidden ${isMobile ? 'flex flex-col' : ''}`}>
-                <TopNavbar />
-                <div className={`flex mt-4 ${isMobile ? 'flex-col' : ''}`}>
-                    <div className='flex-1'>
-                        <div className='bg-white p-6 rounded-lg shadow-lg mr-2'>
-                            <div className='flex justify-between items-center mb-6'>
-                                <Breadcrumb
-                                    text={
-                                        <span className='font-bold'>
-                                            Automations &gt; Workflows
-                                        </span>
-                                    }
-                                />
-                            </div>
-
-                            <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-4' : ''}`}>
-                                <ReusableButton
-                                    onClick={() => setIsModalOpen(true)}
-                                    isActive={true}
-                                >
-                                    + Build New Workflow
-                                </ReusableButton>
-                                <div className={`flex gap-2 items-center ${isMobile ? 'flex-col' : ''}`}>
-                                    <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
-                                        <ReusableButton
-                                            onClick={() =>
-                                                setActiveTab('workflows')
-                                            }
-                                            isActive={activeTab === 'workflows'}
-                                        >
-                                            Workflows
-                                        </ReusableButton>
-                                        <ReusableButton
-                                            onClick={() =>
-                                                setActiveTab('executed')
-                                            }
-                                            isActive={activeTab === 'executed'}
-                                        >
-                                            Executed Workflows
-                                        </ReusableButton>
-                                    </div>
-                                    <SearchInput
-                                        value={search}
-                                        onChange={e =>
-                                            setSearch(e.target.value)
-                                        }
-                                        placeholder='Search'
-                                    />
-                                    <IconButton icon={Search} />
-                                    <IconButton icon={Filter} />
-                                </div>
-                            </div>
-                            <div className='overflow-visible relative z-[50] horizontal-scroll-hidden'>
-                                <WorkflowTable workflows={paginatedWorkflows} />
-                            </div>
-
-                            <Pagination
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                onPageChange={setCurrentPage}
-                            />
+            <WorkflowLayout breadcrumbText='Workflows'>
+                <div
+                    className={`flex justify-between items-center mb-4 ${
+                        isMobile ? 'flex-col gap-4' : ''
+                    }`}
+                >
+                    <ReusableButton
+                        onClick={() => setIsModalOpen(true)}
+                        isActive={true}
+                    >
+                        + Build New Workflow
+                    </ReusableButton>
+                    <div
+                        className={`flex gap-2 items-center ${
+                            isMobile ? 'flex-col' : ''
+                        }`}
+                    >
+                        <div
+                            className={`flex gap-2 ${
+                                isMobile ? 'flex-col' : ''
+                            }`}
+                        >
+                            <ReusableButton
+                                onClick={() => setActiveTab('workflows')}
+                                isActive={activeTab === 'workflows'}
+                            >
+                                Workflows
+                            </ReusableButton>
+                            <ReusableButton
+                                onClick={() => setActiveTab('executed')}
+                                isActive={activeTab === 'executed'}
+                            >
+                                Executed Workflows
+                            </ReusableButton>
                         </div>
+                        <SearchInput
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder='Search'
+                        />
+                        <IconButton icon={Search} />
+                        <IconButton icon={Filter} />
                     </div>
-                    <Sidebar className={`mt-4 ${isMobile ? 'w-full' : ''}`} />
                 </div>
-                <Footer />
+                <div className='overflow-visible relative z-[50] horizontal-scroll-hidden'>
+                    <WorkflowTable workflows={paginatedWorkflows} />
+                </div>
+
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
 
                 {/* Modal Integration */}
                 <Modal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
                 />
-            </div>
+            </WorkflowLayout>
         </DropdownProvider>
     )
 }

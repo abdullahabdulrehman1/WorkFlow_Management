@@ -61,7 +61,7 @@ const Sidebar = () => {
                         </button>
                         <button className='p-2 rounded-full  hover:bg-white hover:p-2'>
                             <LogOut className='text-blue-500' />
-                        </button>
+                        </button>   
                     </div>
                 </div>
             )}
