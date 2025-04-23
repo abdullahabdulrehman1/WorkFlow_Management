@@ -1,11 +1,13 @@
-import React from 'react';
+import React from 'react'
+import Workflows from '../pages/Workflows'
+import { DropdownProvider } from '../components/context/DropdownContext'
 
 const App = () => {
     return (
-        <div>
-            <h1>Welcome to the App Component</h1>
-        </div>
-    );
-};
+        <DropdownProvider>
+            <Workflows />
+        </DropdownProvider>
+    )
+}
 
-export default App;
+export default App

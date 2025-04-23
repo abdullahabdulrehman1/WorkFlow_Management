@@ -14,6 +14,6 @@ Route::get('/', function () {
     return Inertia::render('App');
 });
 
-Route::get('/test-tailwind', function () {
-    return Inertia::render('TailwindTest');
+Route::get('/workflows', function () {
+    return Inertia::render('Workflows');
 });

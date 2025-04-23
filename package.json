@@ -16,8 +16,11 @@
         "vite": "^6.2.4"
     },
     "dependencies": {
+        "@floating-ui/react": "^0.27.8",
+        "@headlessui/react": "^2.2.2",
         "@inertiajs/react": "^2.0.8",
         "@tailwindcss/postcss": "^4.1.4",
+        "@tanstack/react-table": "^8.21.3",
         "@vitejs/plugin-react": "^4.4.1",
         "lucide-react": "^0.503.0",
         "react": "^19.1.0",
