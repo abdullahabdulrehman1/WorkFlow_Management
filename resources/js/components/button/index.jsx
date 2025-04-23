@@ -1,9 +1,9 @@
-import React from 'react';
+import React from 'react'
 
 const ReusableButton = ({ onClick, children, className, isActive }) => {
     const activeClass = isActive
         ? 'border-yellow-400 bg-yellow-100 text-black'
-        : 'border-gray-300 bg-white text-gray-500';
+        : 'border-gray-300 bg-white text-gray-500'
 
     return (
         <button
@@ -12,7 +12,7 @@ const ReusableButton = ({ onClick, children, className, isActive }) => {
         >
             {children}
         </button>
-    );
-};
+    )
+}
 
-export default ReusableButton;
+export default ReusableButton

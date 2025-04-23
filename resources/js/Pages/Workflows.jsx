@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Search, Filter, MoreVertical } from 'lucide-react'
 
 import { Menu } from '@headlessui/react'
@@ -29,23 +29,37 @@ export default function Workflows () {
     const [activeTab, setActiveTab] = useState('workflows')
     const [currentPage, setCurrentPage] = useState(1)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const itemsPerPage = 5
+    const [isMobile, setIsMobile] = useState(false);
+    const itemsPerPage = 5;
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+
+        handleResize();
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
+    }, []);
 
     const filtered = workflows.filter(w =>
         w.name.toLowerCase().includes(search.toLowerCase())
-    )
+    );
 
-    const totalPages = Math.ceil(filtered.length / itemsPerPage)
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
     const paginatedWorkflows = filtered.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage
-    )
+    );
 
     return (
         <DropdownProvider>
-            <div className='flex-1 p-6 bg-gradient-to-br from-blue-500 via-blue-300 to-blue-100 min-h-screen overflow-x-hidden'>
+            <div className={`flex-1 p-6 bg-gradient-to-br from-blue-500 via-blue-300 to-blue-100 min-h-screen overflow-x-hidden ${isMobile ? 'flex flex-col' : ''}`}>
                 <TopNavbar />
-                <div className='flex mt-4'>
+                <div className={`flex mt-4 ${isMobile ? 'flex-col' : ''}`}>
                     <div className='flex-1'>
                         <div className='bg-white p-6 rounded-lg shadow-lg mr-2'>
                             <div className='flex justify-between items-center mb-6'>
@@ -58,15 +72,15 @@ export default function Workflows () {
                                 />
                             </div>
 
-                            <div className='flex justify-between items-center mb-4'>
+                            <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-4' : ''}`}>
                                 <ReusableButton
                                     onClick={() => setIsModalOpen(true)}
                                     isActive={true}
                                 >
                                     + Build New Workflow
                                 </ReusableButton>
-                                <div className='flex gap-2 items-center'>
-                                    <div className='flex gap-2'>
+                                <div className={`flex gap-2 items-center ${isMobile ? 'flex-col' : ''}`}>
+                                    <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
                                         <ReusableButton
                                             onClick={() =>
                                                 setActiveTab('workflows')
@@ -95,7 +109,7 @@ export default function Workflows () {
                                     <IconButton icon={Filter} />
                                 </div>
                             </div>
-                            <div className='overflow-visible relative z-[50]  horizontal-scroll-hidden'>
+                            <div className='overflow-visible relative z-[50] horizontal-scroll-hidden'>
                                 <WorkflowTable workflows={paginatedWorkflows} />
                             </div>
 
@@ -106,7 +120,7 @@ export default function Workflows () {
                             />
                         </div>
                     </div>
-                    <Sidebar className='mt-4' />
+                    <Sidebar className={`mt-4 ${isMobile ? 'w-full' : ''}`} />
                 </div>
                 <Footer />
 

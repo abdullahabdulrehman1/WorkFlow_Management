@@ -1,27 +1,26 @@
-import { useState } from 'react';
-import { ChevronLeft, Sun, Moon, Bell, Settings } from 'lucide-react';
-import ToggleSwitch from './ToggleSwitch';
-import Modal from './Modal';
-import ProfileMenu from './ProfileMenu';
-import SettingsMenu from './SettingsMenu';
+import { useState } from 'react'
+import { ChevronLeft, Sun, Moon, Bell, Settings } from 'lucide-react'
+import ToggleSwitch from './ToggleSwitch'
+import Modal from './Modal'
+import ProfileMenu from './ProfileMenu'
+import SettingsMenu from './SettingsMenu'
 
-export default function TopNavbar() {
-    const [isToggled, setIsToggled] = useState(false);
-    const [activeModal, setActiveModal] = useState(null); // Track active modal
+export default function TopNavbar () {
+    const [isToggled, setIsToggled] = useState(false)
+    const [activeModal, setActiveModal] = useState(null) // Track active modal
 
     const handleToggle = () => {
-        setIsToggled(!isToggled);
-    };
+        setIsToggled(!isToggled)
+    }
 
-    const toggleModal = (modalName) => {
-        setActiveModal(activeModal === modalName ? null : modalName);
-    };
+    const toggleModal = modalName => {
+        setActiveModal(activeModal === modalName ? null : modalName)
+    }
 
     return (
-        <div 
-        className='bg-gradient-to-br from-white/30 via-gray-100/30 to-gray-200/30 backdrop-blur-md px-4 py-2 flex justify-between items-center rounded-3xl shadow text-sm'>
+        <div className='bg-gradient-to-br from-white/30 via-gray-100/30 to-gray-200/30 backdrop-blur-md px-4 py-2 flex flex-col sm:flex-row justify-between items-center rounded-3xl shadow text-sm'>
             {/* Left - Back & Automations */}
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-2 mb-2 sm:mb-0'>
                 <button className='bg-white p-2 rounded-full shadow-sm'>
                     <ChevronLeft className='w-4 h-4 text-sky-600' />
                 </button>
@@ -38,7 +37,7 @@ export default function TopNavbar() {
             </div>
 
             {/* Center - Logo */}
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-2 mb-2 sm:mb-0'>
                 <img src='/logo.png' alt='360' className='w-16 h-6' />
             </div>
 
@@ -74,5 +73,5 @@ export default function TopNavbar() {
                 </div>
             </div>
         </div>
-    );
+    )
 }
