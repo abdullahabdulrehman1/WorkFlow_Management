@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, Sun, Moon, Bell, Settings } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import ToggleSwitch from './ToggleSwitch'
 import Modal from './Modal'
 import ProfileMenu from './ProfileMenu'
@@ -7,7 +8,8 @@ import SettingsMenu from './SettingsMenu'
 
 export default function TopNavbar () {
     const [isToggled, setIsToggled] = useState(false)
-    const [activeModal, setActiveModal] = useState(null) // Track active modal
+    const [activeModal, setActiveModal] = useState(null)
+    const menuRef = useRef(null)
 
     const handleToggle = () => {
         setIsToggled(!isToggled)
@@ -15,6 +17,52 @@ export default function TopNavbar () {
 
     const toggleModal = modalName => {
         setActiveModal(activeModal === modalName ? null : modalName)
+    }
+
+    // Handle clicks outside the menu components
+    useEffect(() => {
+        function handleClickOutside (event) {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setActiveModal(null)
+            }
+        }
+
+        // Add event listener when a modal is open
+        if (activeModal) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+
+        // Clean up the event listener
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [activeModal])
+
+    // Menu animation variants
+    const menuVariants = {
+        hidden: {
+            opacity: 0,
+            y: -10,
+            scale: 0.95
+        },
+        visible: {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            transition: {
+                duration: 0.2,
+                ease: 'easeOut'
+            }
+        },
+        exit: {
+            opacity: 0,
+            y: -10,
+            scale: 0.95,
+            transition: {
+                duration: 0.1,
+                ease: 'easeIn'
+            }
+        }
     }
 
     return (
@@ -42,25 +90,47 @@ export default function TopNavbar () {
             </div>
 
             {/* Right - Icons + Avatar */}
-            <div className='flex items-center gap-4'>
+            <div className='flex items-center gap-4' ref={menuRef}>
                 <ToggleSwitch isToggled={isToggled} onToggle={handleToggle} />
                 <div className='relative'>
                     <Bell
                         className='w-4 h-4 text-gray-600 cursor-pointer'
                         onClick={() => toggleModal('notification')}
                     />
-                    {activeModal === 'notification' && (
-                        <Modal>
-                            <p className='text-gray-500'>No notifications</p>
-                        </Modal>
-                    )}
+                    <AnimatePresence>
+                        {activeModal === 'notification' && (
+                            <motion.div
+                                variants={menuVariants}
+                                initial='hidden'
+                                animate='visible'
+                                exit='exit'
+                            >
+                                <Modal>
+                                    <p className='text-gray-500'>
+                                        No notifications
+                                    </p>
+                                </Modal>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
                 <div className='relative'>
                     <Settings
                         className='w-4 h-4 text-gray-600 cursor-pointer'
                         onClick={() => toggleModal('settings')}
                     />
-                    {activeModal === 'settings' && <SettingsMenu />}
+                    <AnimatePresence>
+                        {activeModal === 'settings' && (
+                            <motion.div
+                                variants={menuVariants}
+                                initial='hidden'
+                                animate='visible'
+                                exit='exit'
+                            >
+                                <SettingsMenu />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
                 <div className='relative'>
                     <img
@@ -69,7 +139,18 @@ export default function TopNavbar () {
                         className='w-8 h-8 rounded-full border-2 border-white shadow-sm cursor-pointer'
                         onClick={() => toggleModal('profile')}
                     />
-                    {activeModal === 'profile' && <ProfileMenu />}
+                    <AnimatePresence>
+                        {activeModal === 'profile' && (
+                            <motion.div
+                                variants={menuVariants}
+                                initial='hidden'
+                                animate='visible'
+                                exit='exit'
+                            >
+                                <ProfileMenu />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>

@@ -1,85 +1,78 @@
-import React, { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import React, { useState } from 'react';
+import { ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { SearchBar, ActionItem } from './ReusableComponents';
+import VisibilityToggleButton from './VisibilityToggleButton';
+import SMSConfigurationForm from './SMSConfigurationForm';
+import ActionList from './ActionList';
 
 const ActionDialog = ({ isOpen = true, onClose }) => {
-    const [isVisible, setIsVisible] = useState(true)
+    const [isVisible, setIsVisible] = useState(false);
+    const [showSMSConfig, setShowSMSConfig] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const toggleVisibility = () => {
-        setIsVisible(!isVisible)
-    }
+        setIsVisible(!isVisible);
+    };
 
-    if (!isOpen) return null
+    const handleSearch = (query) => {
+        setSearchQuery(query);
+    };
+
+    if (!isOpen) return null;
 
     const actions = [
         { label: 'Send email', type: 'action' },
         { label: 'Send SMS', type: 'action' },
-        { label: 'In-app notification', type: 'action' }
-    ]
+        { label: 'In-app notification', type: 'action' },
+    ];
+
+    // Filter actions based on search query
+    const filteredActions = actions.filter(action =>
+        action.label.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
-        <div className='relative'>
+        <div className='relative shadow-xl'>
+            <VisibilityToggleButton
+                isVisible={isVisible}
+                toggleVisibility={toggleVisibility}
+            />
             {!isVisible && (
-                <button
-                    onClick={toggleVisibility}
-                    className='absolute top-2 right-1 p-2 bg-white rounded-full shadow hover:bg-gray-100 z-50'
-                >
-                    <ChevronRight className='text-blue-500' />
-                </button>
-            )}
-
-            {isVisible && (
-                <div className='absolute top-4 right-4 w-[280px] bg-white border shadow-lg rounded-xl p-4 flex flex-col gap-4'>
+                <div className='absolute top-4 right-4 border border-blue-500 w-[280px] bg-white shadow-lg rounded-4xl p-4 flex flex-col gap-4'>
                     <button
-                        onClick={toggleVisibility}
-                        className='absolute top-2 right-1 p-2 bg-white rounded-full shadow hover:bg-gray-100 z-50'
+                        className='flex items-center justify-center mt-2 gap-2 p-1 bg-blue-300 border border-blue-500 rounded-full text-white text-xs hover:bg-blue-400'
+                        onClick={() => {
+                            setShowSMSConfig(!showSMSConfig);
+                            setIsVisible(false);
+                        }}
                     >
-                        <ChevronRight className='text-blue-500 rotate-180' />
+                        SMS Configuration
+                        <div className='flex items-center justify-center w-4 h-4 bg-white rounded-full'>
+                            {showSMSConfig ? (
+                                <ChevronDown className='text-blue-500' />
+                            ) : (
+                                <ChevronUp className='text-blue-500' />
+                            )}
+                        </div>
                     </button>
-                    <h2 className='text-sm font-semibold text-gray-600'>
-                        Actions
-                    </h2>
-                    <div className='flex items-center border rounded-full px-3 py-1 bg-blue-100'>
-                        <input
-                            type='text'
-                            placeholder='Search actions'
-                            className='bg-transparent text-sm flex-1 outline-none'
-                        />
-                        <button className='ml-2 text-sky-600'>🔍</button>
-                    </div>
-                    <div className='flex flex-col gap-2 overflow-y-auto'>
-                        {actions.map((action, i) => (
-                            <div
-                                key={i}
-                                className='p-3 rounded-lg shadow-sm border bg-yellow-50 text-xs text-gray-700 hover:bg-yellow-100 cursor-pointer'
-                                draggable
-                                onDragStart={e => {
-                                    console.log('Drag started with:', {
-                                        label: action.label,
-                                        type: action.type
-                                    });
-                                    e.dataTransfer.setData(
-                                        'application/reactflow',
-                                        JSON.stringify({
-                                            label: action.label,
-                                            type: action.type
-                                        })
-                                    );
-                                    e.dataTransfer.effectAllowed = 'move';
-                                }}
-                            >
-                                <strong>{action.label}</strong>
-                                <div className='text-[10px] text-gray-500'>
-                                    Description about{' '}
-                                    {action.label.toLowerCase()}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                   
+                    {showSMSConfig ? (
+                        <SMSConfigurationForm />
+                    ) : (
+                        <>
+                            <h2 className='text-sm font-bold text-gray-700'>
+                                Actions
+                            </h2>
+                            <SearchBar
+                                placeholder='Search actions'
+                                onSearch={handleSearch}
+                            />
+                            <ActionList actions={filteredActions} />
+                        </>
+                    )}
                 </div>
             )}
         </div>
-    )
-}
+    );
+};
 
-export default ActionDialog
+export default ActionDialog;

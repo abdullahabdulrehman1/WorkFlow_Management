@@ -23,6 +23,7 @@
         "@tanstack/react-table": "^8.21.3",
         "@vitejs/plugin-react": "^4.4.1",
         "@xyflow/react": "^12.6.0",
+        "framer-motion": "^12.8.0",
         "lucide-react": "^0.503.0",
         "react": "^19.1.0",
         "react-dnd": "^16.0.1",

@@ -1,12 +1,53 @@
+import { motion } from 'framer-motion'
+
 export default function SettingsMenu() {
+    const itemVariants = {
+        hidden: { opacity: 0, y: 5 },
+        visible: i => ({
+            opacity: 1,
+            y: 0,
+            transition: {
+                delay: i * 0.05,
+                duration: 0.2
+            }
+        })
+    };
+
     return (
         <div className='absolute right-0 mt-2 w-48 bg-white bg-opacity-80 backdrop-blur-md rounded-lg shadow-lg p-4'>
             <ul className='text-gray-700'>
-                <li className='cursor-pointer hover:text-sky-500'>Option 1</li>
+                <motion.li 
+                    custom={0} 
+                    initial="hidden" 
+                    animate="visible" 
+                    variants={itemVariants}
+                    className='cursor-pointer hover:text-sky-500'
+                    whileHover={{ x: 3 }}
+                >
+                    Option 1
+                </motion.li>
                 <li className='border-t border-gray-300 my-2'></li>
-                <li className='cursor-pointer hover:text-sky-500'>Option 2</li>
+                <motion.li 
+                    custom={1} 
+                    initial="hidden" 
+                    animate="visible" 
+                    variants={itemVariants}
+                    className='cursor-pointer hover:text-sky-500'
+                    whileHover={{ x: 3 }}
+                >
+                    Option 2
+                </motion.li>
                 <li className='border-t border-gray-300 my-2'></li>
-                <li className='cursor-pointer hover:text-sky-500'>Option 3</li>
+                <motion.li 
+                    custom={2} 
+                    initial="hidden" 
+                    animate="visible" 
+                    variants={itemVariants}
+                    className='cursor-pointer hover:text-sky-500'
+                    whileHover={{ x: 3 }}
+                >
+                    Option 3
+                </motion.li>
             </ul>
         </div>
     );

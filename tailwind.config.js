@@ -7,6 +7,14 @@ module.exports = {
     ],
     theme: {
       extend: {
+        colors: {
+          orange: {
+            50: '#fff7ed',
+            100: '#ffedd5',
+            // ... add other orange shades if missing
+          }
+        },
+  
         keyframes: {
           fadeInScale: {
             '0%': { opacity: 0, transform: 'scale(0.8)' },

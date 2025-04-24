@@ -6,6 +6,25 @@
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
+        <!-- Favicon and Browser Tab Icons -->
+        <link rel="icon" href="{{ asset('z360.jpg') }}?v=1.0" type="image/jpeg">
+        <link rel="shortcut icon" href="{{ asset('z360.jpg') }}?v=1.0" type="image/jpeg">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('z360.jpg') }}?v=1.0">
+        <meta name="theme-color" content="#ffffff">
+        <meta property="og:image" content="{{ asset('z360.jpg') }}">
+        <meta name="msapplication-TileImage" content="{{ asset('z360.jpg') }}">
+        <!-- Force favicon refresh with absolute URL -->
+        <link rel="icon" type="image/jpeg" href="{{ url('/') }}/z360.jpg?v=1.0">
+
+        <!-- Open Graph meta tags for social sharing -->
+        <meta property="og:title" content="{{ config('app.name', 'Laravel') }}">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="{{ url('/') }}">
+        <meta property="og:image" content="{{ asset('z360.jpg') }}">
+        <meta property="og:image:type" content="image/jpeg">
+        <meta property="og:image:width" content="300">
+        <meta property="og:image:height" content="300">
+
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
