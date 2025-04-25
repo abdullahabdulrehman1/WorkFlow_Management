@@ -20,7 +20,7 @@ class WorkflowController extends Controller
     {
         $search = $request->input('search', '');
         $perPage = $request->input('per_page', 10);
-        
+
         $workflows = Workflow::query()
             ->when($search, function ($query, $search) {
                 return $query->where('name', 'like', "%{$search}%");
@@ -46,7 +46,7 @@ class WorkflowController extends Controller
     {
         $search = $request->input('search', '');
         $perPage = $request->input('per_page', 10);
-        
+
         $workflows = Workflow::query()
             ->when($search, function ($query, $search) {
                 return $query->where('name', 'like', "%{$search}%");
@@ -55,7 +55,7 @@ class WorkflowController extends Controller
             ->orderBy('updated_at', 'desc')
             ->paginate($perPage)
             ->withQueryString();
-        
+
         return response()->json([
             'workflows' => $workflows,
         ]);
@@ -94,13 +94,13 @@ class WorkflowController extends Controller
     public function show(Workflow $workflow)
     {
         $workflow->load(['trigger', 'actions.action', 'connections']);
-        
+
         if (request()->wantsJson()) {
             return response()->json([
                 'workflow' => $workflow,
             ]);
         }
-        
+
         return Inertia::render('Workflows/Show', [
             'workflow' => $workflow,
         ]);
@@ -112,7 +112,7 @@ class WorkflowController extends Controller
     public function edit(Workflow $workflow)
     {
         $workflow->load(['trigger', 'actions.action', 'connections']);
-        
+
         return Inertia::render('Workflows/Edit', [
             'workflow' => $workflow,
         ]);
@@ -143,13 +143,13 @@ class WorkflowController extends Controller
     public function destroy(Workflow $workflow)
     {
         $workflow->delete();
-        
+
         if (request()->wantsJson()) {
             return response()->json([
                 'message' => 'Workflow deleted successfully',
             ]);
         }
-        
+
         return redirect()->route('workflows.index')
             ->with('success', 'Workflow deleted successfully');
     }
@@ -163,30 +163,30 @@ class WorkflowController extends Controller
 
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             // Delete existing actions and connections
             $workflow->actions()->delete();
             $workflow->connections()->delete();
-            
+
             // Track old ID to new ID mapping
             $idMapping = [];
-            
+
             // Get the first action from the database to use for trigger nodes (typically ID 1 for "Send Email")
             // Using a fixed ID is safer than querying each time, as we know this ID exists
             $defaultActionId = 1; // This should be an ID that definitely exists in your actions table
-            
+
             // Create new actions and track their IDs for connection mapping
             foreach ($validated['actions'] as $actionData) {
                 // Store the original frontend ID before creating the action
                 $originalId = $actionData['id'];
-                
+
                 // For non-trigger nodes, ensure action_id is set to prevent unwanted defaults
                 if (($actionData['type'] ?? '') !== 'trigger' && empty($actionData['action_id'])) {
                     // Skip nodes without action_id to prevent unwanted Send Email nodes
                     continue;
                 }
-                
+
                 // Prepare data for database insertion
                 $actionDbData = [
                     'x' => $actionData['x'],
@@ -195,7 +195,7 @@ class WorkflowController extends Controller
                     'label' => $actionData['label'] ?? null,
                     'configuration_json' => $actionData['configuration_json'] ?? [],
                 ];
-                
+
                 // Handle action_id specially for trigger nodes
                 if (($actionData['type'] ?? '') === 'trigger') {
                     // Use the default action_id (typically 1) but mark the node as 'trigger' type
@@ -205,38 +205,38 @@ class WorkflowController extends Controller
                     // Regular action node
                     $actionDbData['action_id'] = $actionData['action_id'];
                 }
-                
+
                 // Create the action
                 $action = $workflow->actions()->create($actionDbData);
-                
+
                 // Map the original ID to the new database ID
                 $idMapping[$originalId] = $action->id;
             }
-            
+
             // Create new connections only if they exist, using the mapped IDs
             if (!empty($validated['connections'])) {
                 foreach ($validated['connections'] as $connectionData) {
                     $sourceId = $connectionData['source_node_id'];
                     $targetId = $connectionData['target_node_id'];
-                    
+
                     // Skip connections if source or target was skipped due to validation
                     if (!isset($idMapping[$sourceId]) || !isset($idMapping[$targetId])) {
                         continue;
                     }
-                    
+
                     // Map to new IDs
                     $mappedSourceId = $idMapping[$sourceId];
                     $mappedTargetId = $idMapping[$targetId];
-                    
+
                     $workflow->connections()->create([
                         'source_node_id' => $mappedSourceId,
                         'target_node_id' => $mappedTargetId,
                     ]);
                 }
             }
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'message' => 'Workflow canvas saved successfully',
                 'workflow' => $workflow->fresh(['actions.action', 'connections']),
@@ -258,13 +258,13 @@ class WorkflowController extends Controller
     public function loadCanvas(Workflow $workflow)
     {
         $workflow->load(['actions.action', 'connections']);
-        
+
         // Log node counts and types for debugging
         $nodeCount = $workflow->actions->count();
         $triggerNodes = $workflow->actions->where('type', 'trigger')->count();
         $actionNodes = $workflow->actions->where('type', 'action')->count();
         $sendEmailNodes = $workflow->actions->where('action_id', 1)->count();
-        
+
         // Add debug info to response
         return response()->json([
             'workflow' => $workflow,
@@ -273,7 +273,7 @@ class WorkflowController extends Controller
                 'trigger_nodes' => $triggerNodes,
                 'action_nodes' => $actionNodes,
                 'send_email_nodes' => $sendEmailNodes,
-                'all_actions' => $workflow->actions->map(function($action) {
+                'all_actions' => $workflow->actions->map(function ($action) {
                     return [
                         'id' => $action->id,
                         'type' => $action->type,

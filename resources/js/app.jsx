@@ -15,25 +15,17 @@ createInertiaApp({
         createRoot(el).render(
             <>
                 <App {...props} />
-                <Toaster position="top-right" toastOptions={{
-                    // Default toast options
-                    duration: 3000,
-                    style: {
-                        background: '#363636',
-                        color: '#fff',
-                    },
-                    success: {
-                        style: {
-                            background: '#22c55e',
-                        },
-                    },
-                    error: {
-                        style: {
-                            background: '#ef4444',
-                        },
-                        duration: 4000,
-                    },
-                }} />
+                <Toaster 
+                    position="top-center" 
+                    gutter={12}
+                    containerStyle={{ 
+                        zIndex: 9999,
+                        top: 60 
+                    }}
+                    toastOptions={{
+                        className: '!bg-opacity-90 backdrop-blur-sm',
+                    }}
+                />
             </>
         );
     },

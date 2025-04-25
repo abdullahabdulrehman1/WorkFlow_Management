@@ -49,11 +49,11 @@ export default function Dropdown({ actions, onActionClick, item }) {
   };
 
   return (
-    <Menu as="div" className="relative inline-block text-left" ref={dropdownContainerRef}>
+    <Menu as="div" className="relative  inline-block text-left" ref={dropdownContainerRef}>
       <Menu.Button
         ref={refs.setReference}
         onClick={handleToggle}
-        className="p-2 hover:bg-sky-100 rounded-full border border-sky-300 transition"
+        className="p-2 hover:bg-sky-100 cursor-pointer rounded-full border border-sky-300 transition"
       >
         <MoreVertical className="w-5 h-5 text-sky-600" />
       </Menu.Button>

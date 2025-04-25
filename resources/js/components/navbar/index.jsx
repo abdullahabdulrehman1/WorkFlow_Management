@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ChevronLeft, Sun, Moon, Bell, Settings } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { router } from '@inertiajs/react'
 import ToggleSwitch from './ToggleSwitch'
 import Modal from './Modal'
 import ProfileMenu from './ProfileMenu'
@@ -69,10 +70,16 @@ export default function TopNavbar () {
         <div className='bg-gradient-to-br from-white/30 via-gray-100/30 to-gray-200/30 backdrop-blur-md px-4 py-2 flex flex-col sm:flex-row justify-between items-center rounded-3xl shadow text-sm'>
             {/* Left - Back & Automations */}
             <div className='flex items-center gap-2 mb-2 sm:mb-0'>
-                <button className='bg-white p-2 rounded-full shadow-sm'>
+                <button
+                    className='bg-white p-2 cursor-pointer rounded-full shadow-sm hover:bg-gray-100 transition-colors'
+                    onClick={() => router.visit('/workflows')}
+                >
                     <ChevronLeft className='w-4 h-4 text-sky-600' />
                 </button>
-                <div className='flex items-center gap-2 bg-white px-3 py-1 rounded-full shadow-sm'>
+                <div
+                    className='flex cursor-pointer items-center gap-2 bg-white px-3 py-1 rounded-full shadow-sm'
+                    onClick={() => router.visit('/workflows')}
+                >
                     <img
                         src='/settings.png'
                         alt='automation'

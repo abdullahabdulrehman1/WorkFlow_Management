@@ -8,7 +8,7 @@ const ReusableButton = ({ onClick, children, className, isActive }) => {
     return (
         <button
             onClick={onClick}
-            className={`${activeClass} ${className} text-sm font-semibold px-4 py-2 rounded-full flex items-center shadow`}
+            className={`${activeClass} ${className} text-sm cursor-pointer font-semibold px-4 py-2 rounded-full flex items-center shadow`}
         >
             {children}
         </button>

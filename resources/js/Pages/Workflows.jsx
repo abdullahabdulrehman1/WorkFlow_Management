@@ -20,12 +20,13 @@ export default function Workflows () {
     const [activeTab, setActiveTab] = useState('workflows')
     const [currentPage, setCurrentPage] = useState(1)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [modalMode, setModalMode] = useState('create') // 'create', 'rename', or 'delete'
+    const [selectedWorkflow, setSelectedWorkflow] = useState(null)
     const [isMobile, setIsMobile] = useState(false)
     const [workflows, setWorkflows] = useState([])
     const [triggers, setTriggers] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-    const [confirmDelete, setConfirmDelete] = useState(null) // Store workflow to delete
     const [pagination, setPagination] = useState({
         total: 0,
         perPage: 5,
@@ -113,29 +114,69 @@ export default function Workflows () {
             await axios.delete(`/api/workflows/${workflow.id}`);
             fetchWorkflows(currentPage, search);
             toast?.success('Workflow deleted successfully') || alert('Workflow deleted successfully');
-            setConfirmDelete(null); // Clear confirmation
+            return { success: true };
         } catch (err) {
             console.error('Error deleting workflow:', err);
             toast?.error('Failed to delete workflow') || alert('Failed to delete workflow');
+            throw err;
         }
     };
     
-    // Handle dropdown actions
+    // Rename a workflow
+    const renameWorkflow = async (workflow) => {
+        try {
+            const response = await axios.put(`/api/workflows/${workflow.id}`, {
+                name: workflow.name,
+                trigger_id: workflow.trigger_id,
+                status: workflow.status || 'draft'
+            });
+            fetchWorkflows(currentPage, search);
+            toast?.success('Workflow renamed successfully') || alert('Workflow renamed successfully');
+            return response.data;
+        } catch (err) {
+            console.error('Error renaming workflow:', err);
+            toast?.error('Failed to rename workflow') || alert('Failed to rename workflow');
+            throw err;
+        }
+    };
+    
+    // Open modal with specific mode and workflow data
+    const openModal = (mode, workflow = null) => {
+        setModalMode(mode);
+        setSelectedWorkflow(workflow);
+        setIsModalOpen(true);
+    };
+    
+    // Handle workflow action from dropdown
     const handleWorkflowAction = (action, workflow) => {
         switch(action) {
             case 'Delete':
-                setConfirmDelete(workflow);
+                openModal('delete', workflow);
+                break;
+            case 'Rename':
+                openModal('rename', workflow);
                 break;
             case 'Edit':
                 navigateToCanvas(workflow);
                 break;
-            
             default:
                 console.log(`Action ${action} not implemented for workflow ${workflow.id}`);
         }
     };
     
- 
+    // Handle modal submit based on current mode
+    const handleModalSubmit = (data) => {
+        switch(modalMode) {
+            case 'create':
+                return createWorkflow(data);
+            case 'delete':
+                return deleteWorkflow(data);
+            case 'rename':
+                return renameWorkflow(data);
+            default:
+                return Promise.reject(new Error('Invalid modal mode'));
+        }
+    };
     
     // Navigate to canvas page using Inertia
     const navigateToCanvas = (workflow) => {
@@ -193,37 +234,13 @@ export default function Workflows () {
                     </div>
                 )}
                 
-                {/* Confirmation Dialog for Delete */}
-                {confirmDelete && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-                            <h3 className="text-xl font-bold mb-4">Confirm Delete</h3>
-                            <p className="mb-6">Are you sure you want to delete workflow "{confirmDelete.name}"? This action cannot be undone.</p>
-                            <div className="flex justify-end gap-3">
-                                <button 
-                                    className="px-4 py-2 bg-gray-200 rounded-md text-gray-800 hover:bg-gray-300"
-                                    onClick={() => setConfirmDelete(null)}
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    className="px-4 py-2 bg-red-600 rounded-md text-white hover:bg-red-700"
-                                    onClick={() => deleteWorkflow(confirmDelete)}
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                
                 <div
                     className={`flex justify-between items-center mb-4 ${
                         isMobile ? 'flex-col gap-4' : ''
                     }`}
                 >
                     <ReusableButton
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => openModal('create')}
                         isActive={true}
                     >
                         + Build New Workflow
@@ -277,12 +294,14 @@ export default function Workflows () {
                     onPageChange={handlePageChange}
                 />
 
-                {/* Modal Integration */}
+                {/* Modal Integration - Now handles create, rename and delete */}
                 <Modal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    onSubmit={createWorkflow}
+                    onSubmit={handleModalSubmit}
                     triggers={triggers}
+                    mode={modalMode}
+                    workflow={selectedWorkflow}
                 />
             </WorkflowLayout>
         </DropdownProvider>

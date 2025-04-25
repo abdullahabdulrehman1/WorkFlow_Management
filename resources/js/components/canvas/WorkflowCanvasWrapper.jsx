@@ -4,15 +4,11 @@ import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import WorkflowCanvas from './WorkflowCanvas';
 import { useAutoSaveCanvas } from './hooks';
 
-/**
- * Wrapper component for WorkflowCanvas that provides ReactFlow context
- * and forwards methods from WorkflowCanvas to parent components
- */
+
 const WorkflowCanvasWrapper = forwardRef((props, ref) => {
   const { workflowId, workflowName, triggerName, triggerID } = props;
   const canvasRef = useRef(null);
   
-  // Use auto-save hook to automatically save and load canvas data
   const { isLoading, lastSaved, justSaved, error } = useAutoSaveCanvas(workflowId, canvasRef);
   
   // Forward methods from WorkflowCanvas to parent components

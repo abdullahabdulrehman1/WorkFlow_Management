@@ -1,24 +1,11 @@
 import React from 'react';
-import { Save, CheckCircle } from 'lucide-react';
 
-/**
- * A minimal save status indicator component that shows when content has been saved
- * @param {Object} props
- * @param {boolean} props.saved - Whether the content has been saved
- */
-const SaveIndicator = ({ saved = false }) => {
-  return (
-    <div className="flex items-center ml-2">
-      {saved ? (
-        <div className="flex items-center text-green-500">
-          <CheckCircle size={16} />
-          <span className="text-xs ml-1">Saved</span>
+export default function SaveIndicator({ saved }) {
+    return (
+        <div className={`transition-opacity duration-500 ${saved ? 'opacity-100' : 'opacity-0'}`}>
+            <span className="ml-2 bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+                Saved
+            </span>
         </div>
-      ) : (
-        <Save size={16} className="text-gray-400" />
-      )}
-    </div>
-  );
-};
-
-export default SaveIndicator;
+    );
+}

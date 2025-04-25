@@ -56,12 +56,8 @@ const WorkflowCanvas = forwardRef((props, ref) => {
     const deleteNode = useNodeDeletion(nodes, setNodes, setEdges)
 
     // Initialize canvas with trigger node
-    const { isInitialized, setIsInitialized, setDataLoaded } = useCanvasInitialization(
-        triggerName,
-        triggerID,
-        setNodes,
-        setEdges
-    )
+    const { isInitialized, setIsInitialized, setDataLoaded } =
+        useCanvasInitialization(triggerName, triggerID, setNodes, setEdges)
 
     // Custom hook for drag and drop functionality
     const { isDraggingOver, onDragOver, onDragLeave, onDrop } = useDragAndDrop(
@@ -74,25 +70,27 @@ const WorkflowCanvas = forwardRef((props, ref) => {
     const onConnect = useCallback(
         params => {
             // Log connection attempt for debugging
-            console.log('Connection attempt:', params);
-            
+            console.log('Connection attempt:', params)
+
             // Ensure we're not trying to create a self-loop
             if (params.source === params.target) {
-                console.warn('Prevented self-loop connection');
-                return;
+                console.warn('Prevented self-loop connection')
+                return
             }
-            
+
             // Add the new edge
             setEdges(eds => {
                 // Create a unique edge ID for this connection
-                const edgeId = `e${params.source}-${params.target}`;
-                
+                const edgeId = `e${params.source}-${params.target}`
+
                 // Check if this edge already exists
                 if (eds.some(e => e.id === edgeId)) {
-                    console.log('This connection already exists, not adding duplicate');
-                    return eds;
+                    console.log(
+                        'This connection already exists, not adding duplicate'
+                    )
+                    return eds
                 }
-                
+
                 // Add the new edge to the edges array
                 const newEdge = {
                     ...params,
@@ -100,10 +98,10 @@ const WorkflowCanvas = forwardRef((props, ref) => {
                     animated: true,
                     style: { stroke: '#f97316', strokeWidth: 2 },
                     type: 'default'
-                };
-                console.log('Added new edge:', newEdge);
-                return addEdge(params, eds);
-            });
+                }
+                console.log('Added new edge:', newEdge)
+                return addEdge(params, eds)
+            })
         },
         [setEdges]
     )
@@ -126,23 +124,28 @@ const WorkflowCanvas = forwardRef((props, ref) => {
         // Load canvas data from API format
         loadCanvas: data => {
             // Mark that we're loading data from the server to prevent default node creation
-            setDataLoaded();
-            
+            setDataLoaded()
+
             // Process the loaded data
             const { nodes: loadedNodes, edges: loadedEdges } = processApiData(
                 data,
                 triggerName,
-                triggerID
-            );
-            
+                triggerID,
+                deleteNode // Pass the deleteNode function to process API data
+            )
+
             // Only update if we have valid data
             if (loadedNodes.length > 0) {
-                setNodes(loadedNodes);
-                setEdges(loadedEdges);
-                setIsInitialized(true);
-                console.log('Loaded saved canvas data with', loadedNodes.length, 'nodes');
+                setNodes(loadedNodes)
+                setEdges(loadedEdges)
+                setIsInitialized(true)
+                console.log(
+                    'Loaded saved canvas data with',
+                    loadedNodes.length,
+                    'nodes'
+                )
             } else {
-                console.warn('No valid nodes found in loaded data');
+                console.warn('No valid nodes found in loaded data')
             }
         }
     }))

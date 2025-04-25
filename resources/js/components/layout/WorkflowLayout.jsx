@@ -4,6 +4,7 @@ import { Breadcrumb } from '../reusable'
 import Sidebar from '../sidebar/index'
 import Footer from '../footer'
 import { motion } from 'framer-motion'
+import { Link } from '@inertiajs/react'
 
 export default function WorkflowLayout ({ breadcrumbText, children }) {
     // Animation variants
@@ -51,7 +52,7 @@ export default function WorkflowLayout ({ breadcrumbText, children }) {
                             <Breadcrumb
                                 text={
                                     <span>
-                                        Automation &gt; <strong>{breadcrumbText}</strong>
+                                        <Link href="/workflows" className="text-blue-500 hover:text-blue-700 hover:underline">Automation</Link> &gt; <strong>{breadcrumbText}</strong>
                                     </span>
                                 }
                             />
