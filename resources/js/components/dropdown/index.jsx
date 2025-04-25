@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { useDropdown } from '../context/DropdownContext';
 
-export default function Dropdown({ actions }) {
+export default function Dropdown({ actions, onActionClick, item }) {
   const dropdownContainerRef = useRef(null);
   const { dropdownRef, setDropdownRef } = useDropdown();
 
@@ -39,6 +39,15 @@ export default function Dropdown({ actions }) {
     }
   };
 
+  // Handle action click
+  const handleActionClick = (action) => {
+    if (onActionClick) {
+      onActionClick(action, item);
+    }
+    // Close the dropdown after action
+    setDropdownRef(null);
+  };
+
   return (
     <Menu as="div" className="relative inline-block text-left" ref={dropdownContainerRef}>
       <Menu.Button
@@ -59,6 +68,7 @@ export default function Dropdown({ actions }) {
             <Menu.Item key={idx}>
               {({ active }) => (
                 <button
+                  onClick={() => handleActionClick(action)}
                   className={`w-full text-left px-4 py-2 transition ${
                     action === 'Delete' ? 'text-red-600' : ''
                   } ${active ? 'bg-gray-100' : ''}`}

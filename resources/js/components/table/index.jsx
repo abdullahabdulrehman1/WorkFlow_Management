@@ -1,9 +1,23 @@
 import React from 'react'
-import Dropdown from '@/Components/Dropdown'
+import Dropdown from '../dropdown/index'
 
-const actions = ['Draft Status', 'Duplicate', 'Rename', 'Edit', 'Delete']
+const actions = [, 'Rename', 'Edit', 'Delete']
 
-const WorkflowTable = ({ workflows }) => {
+const WorkflowTable = ({ workflows, onNavigate, onActionClick }) => {
+    // Handle row click to navigate to canvas
+    const handleRowClick = (workflow) => {
+        if (onNavigate) {
+            onNavigate(workflow);
+        }
+    };
+
+    // Handle dropdown actions
+    const handleActionClick = (action, workflow) => {
+        if (onActionClick) {
+            onActionClick(action, workflow);
+        }
+    };
+
     return (
         <div className='space-y-4'>
             {/* Header Row */}
@@ -28,32 +42,46 @@ const WorkflowTable = ({ workflows }) => {
             {/* Data Rows */}
             {workflows.map((workflow, index) => (
                 <div
-                    key={index}
-                    className='grid grid-cols-1 sm:grid-cols-5 items-center bg-white border border-blue-200 rounded-xl shadow-sm px-6 py-2 hover:bg-blue-50 transition'
+                    key={workflow.id || index}
+                    className='grid grid-cols-1 sm:grid-cols-5 items-center bg-white border border-blue-200 rounded-xl shadow-sm px-6 py-2 hover:bg-blue-50 transition cursor-pointer'
+                    onClick={() => handleRowClick(workflow)}
                 >
                     <div className='text-left font-medium'>
                         {workflow.name}
                     </div>
-                    <div className='text-center'>{workflow.createdOn}</div>
                     <div className='text-center'>
-                        {workflow.lastUpdated || 'Not Available'}
+                        {workflow.created_at_formatted || 'Not Available'}
+                    </div>
+                    <div className='text-center'>
+                        {workflow.updated_at_formatted || 'Not Available'}
                     </div>
                     <div className='text-center'>
                         <span
                             className={`inline-block px-3 py-1 text-xs font-medium rounded-full border ${
-                                workflow.status === 'Published'
+                                workflow.status === 'published'
                                     ? 'bg-green-100 text-green-700 border-green-300'
                                     : 'bg-gray-100 text-gray-500 border-gray-300'
                             }`}
                         >
-                            {workflow.status}
+                            {workflow.status ? workflow.status.charAt(0).toUpperCase() + workflow.status.slice(1) : 'Unknown'}
                         </span>
                     </div>
-                    <div className='text-center relative overflow-visible'>
-                        <Dropdown actions={actions} />
+                    <div className='text-center relative overflow-visible' onClick={(e) => e.stopPropagation()}>
+                        <Dropdown 
+                            actions={actions} 
+                            onActionClick={(action) => handleActionClick(action, workflow)}
+                            item={workflow}
+                        />
                     </div>
                 </div>
             ))}
+
+            {/* No workflows message */}
+            {workflows.length === 0 && (
+                <div className='text-center py-8 bg-white border border-blue-200 rounded-xl'>
+                    <p className='text-gray-500'>No workflows found</p>
+                </div>
+            )}
         </div>
     )
 }
