@@ -21,9 +21,10 @@ const ActionDialog = ({ isOpen = true, onClose }) => {
     if (!isOpen) return null;
 
     const actions = [
-        { label: 'Send email', type: 'action' },
-        { label: 'Send SMS', type: 'action' },
-        { label: 'In-app notification', type: 'action' },
+        { label: 'Send Email', type: 'action', action_id: 1 },
+        { label: 'Send SMS', type: 'action', action_id: 2 },
+        { label: 'In-app notification', type: 'action', action_id: 3 },
+ 
     ];
 
     // Filter actions based on search query
@@ -31,7 +32,7 @@ const ActionDialog = ({ isOpen = true, onClose }) => {
         action.label.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    return (
+    return (    
         <div className='relative shadow-xl'>
             <VisibilityToggleButton
                 isVisible={isVisible}

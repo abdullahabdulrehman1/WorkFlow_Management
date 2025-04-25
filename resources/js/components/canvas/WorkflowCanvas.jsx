@@ -16,7 +16,7 @@ import { nodeTypes } from './nodes'
 import {
     createDefaultTriggerNode,
     convertCanvasDataForAPI,
-    loadCanvasData
+    processApiData
 } from './utils'
 
 // Import custom hooks
@@ -56,7 +56,7 @@ const WorkflowCanvas = forwardRef((props, ref) => {
     const deleteNode = useNodeDeletion(nodes, setNodes, setEdges)
 
     // Initialize canvas with trigger node
-    const { isInitialized, setIsInitialized } = useCanvasInitialization(
+    const { isInitialized, setIsInitialized, setDataLoaded } = useCanvasInitialization(
         triggerName,
         triggerID,
         setNodes,
@@ -72,7 +72,39 @@ const WorkflowCanvas = forwardRef((props, ref) => {
 
     // Handle connecting nodes
     const onConnect = useCallback(
-        params => setEdges(eds => addEdge(params, eds)),
+        params => {
+            // Log connection attempt for debugging
+            console.log('Connection attempt:', params);
+            
+            // Ensure we're not trying to create a self-loop
+            if (params.source === params.target) {
+                console.warn('Prevented self-loop connection');
+                return;
+            }
+            
+            // Add the new edge
+            setEdges(eds => {
+                // Create a unique edge ID for this connection
+                const edgeId = `e${params.source}-${params.target}`;
+                
+                // Check if this edge already exists
+                if (eds.some(e => e.id === edgeId)) {
+                    console.log('This connection already exists, not adding duplicate');
+                    return eds;
+                }
+                
+                // Add the new edge to the edges array
+                const newEdge = {
+                    ...params,
+                    id: edgeId,
+                    animated: true,
+                    style: { stroke: '#f97316', strokeWidth: 2 },
+                    type: 'default'
+                };
+                console.log('Added new edge:', newEdge);
+                return addEdge(params, eds);
+            });
+        },
         [setEdges]
     )
 
@@ -93,14 +125,25 @@ const WorkflowCanvas = forwardRef((props, ref) => {
 
         // Load canvas data from API format
         loadCanvas: data => {
-            const { nodes: loadedNodes, edges: loadedEdges } = loadCanvasData(
+            // Mark that we're loading data from the server to prevent default node creation
+            setDataLoaded();
+            
+            // Process the loaded data
+            const { nodes: loadedNodes, edges: loadedEdges } = processApiData(
                 data,
                 triggerName,
                 triggerID
-            )
-            setNodes(loadedNodes)
-            setEdges(loadedEdges)
-            setIsInitialized(true)
+            );
+            
+            // Only update if we have valid data
+            if (loadedNodes.length > 0) {
+                setNodes(loadedNodes);
+                setEdges(loadedEdges);
+                setIsInitialized(true);
+                console.log('Loaded saved canvas data with', loadedNodes.length, 'nodes');
+            } else {
+                console.warn('No valid nodes found in loaded data');
+            }
         }
     }))
 

@@ -11,13 +11,15 @@ const ActionList = ({ actions }) => {
                     onDragStart={e => {
                         console.log('Drag started with:', {
                             label: action.label,
-                            type: action.type
+                            type: action.type,
+                            action_id: action.action_id
                         })
                         e.dataTransfer.setData(
                             'application/reactflow',
                             JSON.stringify({
                                 label: action.label,
-                                type: action.type
+                                type: action.type,
+                                action_id: action.action_id
                             })
                         )
                         e.dataTransfer.effectAllowed = 'move'

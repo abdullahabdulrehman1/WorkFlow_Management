@@ -24,7 +24,9 @@ class WorkflowCanvasRequest extends FormRequest
         return [
             'actions' => 'required|array',
             'actions.*.id' => 'sometimes|integer',
-            'actions.*.action_id' => 'required|exists:actions,id',
+            'actions.*.action_id' => 'required_unless:actions.*.type,trigger|exists:actions,id', // Allow trigger nodes to skip action_id validation
+            'actions.*.trigger_id' => 'required_if:actions.*.type,trigger|exists:triggers,id', // Require trigger_id for trigger nodes
+            'actions.*.type' => 'sometimes|string|in:trigger,action', // Validate node types
             'actions.*.configuration_json' => 'nullable|array',
             'actions.*.x' => 'required|numeric',
             'actions.*.y' => 'required|numeric',

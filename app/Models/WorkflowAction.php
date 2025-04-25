@@ -15,7 +15,9 @@ class WorkflowAction extends Model
         'action_id',
         'configuration_json',
         'x',
-        'y'
+        'y',
+        'type',
+        'label'
     ];
 
     protected $casts = [

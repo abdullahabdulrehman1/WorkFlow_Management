@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast'
 import ActionDialog from '../components/actionDialog'
 import { WorkflowCanvasWrapper } from '../components/canvas'
 import WorkflowLayout from '../components/layout/WorkflowLayout'
+import SaveIndicator from '../components/SaveIndicator'
 
 export default function CreateNewWorkflow () {
     const { url } = usePage();
@@ -19,7 +20,19 @@ export default function CreateNewWorkflow () {
     const [workflow, setWorkflow] = useState(null);
     const [isLoading, setIsLoading] = useState(!!workflowId);
     const [error, setError] = useState(null);
+    const [justSaved, setJustSaved] = useState(false);
     const canvasRef = useRef(null)
+    
+    // Reset the save indicator after a delay
+    useEffect(() => {
+        if (justSaved) {
+            const timer = setTimeout(() => {
+                setJustSaved(false);
+            }, 3000); // Show for 3 seconds
+            
+            return () => clearTimeout(timer);
+        }
+    }, [justSaved]);
     
     // Fetch workflow data if editing an existing workflow
     useEffect(() => {
@@ -138,11 +151,10 @@ export default function CreateNewWorkflow () {
                     trigger_id: triggerId
                 };
                 
-                // Validate payload before sending
                 if (payload.actions.length === 0) {
                     // Add a default action if no actions exist
                     payload.actions.push({
-                        id: '1',
+                        id: 't-1', // Use consistent ID format with prefixed trigger nodes
                         type: 'trigger',
                         action_id: 1, // Required by the backend
                         trigger_id: triggerId,
@@ -152,17 +164,18 @@ export default function CreateNewWorkflow () {
                         y: 50
                     });
                 } else {
-                    // Ensure all actions have action_id
+                    // Ensure all action nodes have action_id set
                     payload.actions = payload.actions.map(action => ({
                         ...action,
                         action_id: action.action_id || 1 // Default to 1 if not set
                     }));
                 }
-                
+            
                 await axios.post(`/api/workflows/${workflowIdToUse}/canvas`, payload);
                 
                 toast.dismiss(loadingToast);
                 toast.success('Workflow saved successfully');
+                setJustSaved(true);
                 
                 // If this was a new workflow, fetch the full workflow data to update our state
                 if (!workflowId && workflowIdToUse) {
@@ -230,10 +243,13 @@ export default function CreateNewWorkflow () {
                                 </span>
                                 
                                 {workflow && (
-                                    <div className="ml-4 px-4 py-1 bg-blue-100 border border-blue-300 rounded-full">
+                                    <div className="ml-4 px-4 py-1 bg-blue-100 border border-blue-300 rounded-full flex items-center">
                                         <span className="font-medium">{workflow.name}</span>
                                         {workflow.trigger && (
-                                            <span className="ml-2 text-blue-700">| {workflow.trigger.name}</span>
+                                            <span className="ml-2 text-blue-700 flex items-center">
+                                                | <span className="mx-1">{workflow.trigger.name}</span>
+                                                <SaveIndicator saved={justSaved} />
+                                            </span>
                                         )}
                                     </div>
                                 )}

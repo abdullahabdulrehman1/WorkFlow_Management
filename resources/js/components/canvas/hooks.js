@@ -47,27 +47,47 @@ export const useDragAndDrop = (screenToFlowPosition, setNodes, deleteNode) => {
       });
 
       try {
-        const data = JSON.parse(
-          event.dataTransfer.getData('application/reactflow')
-        );
+        // Get and log the data transfer content for debugging
+        const dataTransferText = event.dataTransfer.getData('application/reactflow');
+        console.log('Dropped data:', dataTransferText);
         
-        // Generate a consistently formatted ID (use timestamp for uniqueness)
-        const newId = String(Date.now());
-        console.log(`Creating new node with ID: ${newId}`);
-
+        const data = JSON.parse(dataTransferText);
+        
+        // Generate a stable numeric ID that won't conflict with existing nodes
+        // Starting from 100 to avoid conflicts with trigger node (ID: 1)
+        const timestamp = Date.now();
+        const numericId = String(timestamp % 1000000000 + 100);
+        
+        // Ensure we have a valid label from the data or provide a meaningful default
+        const nodeLabel = data.label || 'Action Node';
+        console.log(`Creating new node with label: "${nodeLabel}" and ID: ${numericId}`);
+        
+        // Build a consistent node structure with all required properties
         const newNode = {
-          id: newId,
-          type: data.type,
+          id: numericId,
+          type: data.type || 'action',
           position,
           data: {
-            label: data.label,
-            action_id: 1, // Set a default action_id for the node
-            onDelete: () => deleteNode(newId)
+            label: nodeLabel,
+            // Only use the explicitly provided action_id, don't default to 1
+            action_id: data.action_id,
+            configuration: data.configuration || {},
+            onDelete: () => deleteNode(numericId),
+            // Store the original creation timestamp to ensure stability
+            _created: timestamp
           },
           draggable: true
         };
 
-        setNodes(nds => nds.concat(newNode));
+        // Add the new node to the canvas
+        setNodes(nds => {
+          // Check for duplicates (unlikely but possible with very fast clicking)
+          if (nds.some(n => n.id === numericId)) {
+            console.warn(`Prevented duplicate node creation with ID: ${numericId}`);
+            return nds;
+          }
+          return nds.concat(newNode);
+        });
       } catch (error) {
         console.error('Error adding new node:', error);
       }
@@ -85,6 +105,7 @@ export const useDragAndDrop = (screenToFlowPosition, setNodes, deleteNode) => {
 
 /**
  * Custom hook to initialize and update canvas with trigger node
+ * Only creates default trigger if no saved data exists
  */
 export const useCanvasInitialization = (
   triggerName, 
@@ -93,37 +114,51 @@ export const useCanvasInitialization = (
   setEdges
 ) => {
   const [isInitialized, setIsInitialized] = useState(false);
+  const hasLoadedData = useRef(false);
 
   useEffect(() => {
-    if (!isInitialized) {
-      // On first load, set up with default trigger node
+    if (!isInitialized && !hasLoadedData.current) {
+      // Only create default trigger if no data has been loaded yet
       const defaultTrigger = createDefaultTriggerNode(triggerName, triggerID);
       setNodes([defaultTrigger]);
       setEdges([]);
       setIsInitialized(true);
-    } else if (triggerName) {
+      console.log('Created initial default trigger - no saved data loaded yet');
+    } else if (triggerName && isInitialized) {
       // Update the trigger node label when trigger name changes
-      setNodes(nds =>
-        nds.map(node => {
-          if (node.type === 'trigger') {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                label: triggerName,
-                trigger_id: triggerID
-              }
-            };
-          }
-          return node;
-        })
-      );
+      setNodes(nds => {
+        const triggerNode = nds.find(node => node.type === 'trigger');
+        if (triggerNode) {
+          console.log(`Updating existing trigger node label to: ${triggerName}`);
+          return nds.map(node => {
+            if (node.type === 'trigger') {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  label: triggerName,
+                  trigger_id: triggerID
+                }
+              };
+            }
+            return node;
+          });
+        }
+        return nds;
+      });
     }
   }, [triggerName, triggerID, isInitialized, setNodes, setEdges]);
 
+  // Function to mark that data has been loaded from server
+  const setDataLoaded = () => {
+    hasLoadedData.current = true;
+    console.log('Canvas data loaded from server - will not use default trigger');
+  };
+
   return {
     isInitialized,
-    setIsInitialized
+    setIsInitialized,
+    setDataLoaded
   };
 };
 
@@ -136,8 +171,10 @@ export const useCanvasInitialization = (
 export const useAutoSaveCanvas = (workflowId, canvasRef, saveInterval = 10000) => {
   const [isLoading, setIsLoading] = useState(true);
   const [lastSaved, setLastSaved] = useState(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState(null);
   const saveTimeoutRef = useRef(null);
+  const justSavedTimeoutRef = useRef(null);
   const isMounted = useRef(true);
 
   // Function to save canvas data to backend
@@ -152,14 +189,33 @@ export const useAutoSaveCanvas = (workflowId, canvasRef, saveInterval = 10000) =
       setLastSaved(now);
       setError(null);
       
+      // Set justSaved flag to true and clear after 2 seconds
+      setJustSaved(true);
+      if (justSavedTimeoutRef.current) {
+        clearTimeout(justSavedTimeoutRef.current);
+      }
+      justSavedTimeoutRef.current = setTimeout(() => {
+        setJustSaved(false);
+      }, 2000);
+      
       console.log(`Canvas saved at ${now.toLocaleTimeString()}`);
-      toast.success('Workflow canvas saved');
+      // No longer show toast notification - the SaveClock will handle this
+      // toast.success('Workflow canvas saved');
     } catch (err) {
       console.error('Error saving canvas:', err);
       setError('Failed to save canvas');
       toast.error('Failed to save workflow canvas');
     }
   }, [workflowId, canvasRef]);
+
+  // Clean up timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (justSavedTimeoutRef.current) {
+        clearTimeout(justSavedTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Function to load canvas data from backend
   const loadCanvas = useCallback(async () => {
@@ -172,7 +228,13 @@ export const useAutoSaveCanvas = (workflowId, canvasRef, saveInterval = 10000) =
       const response = await axios.get(`/api/workflows/${workflowId}/canvas`);
       
       if (isMounted.current && canvasRef.current) {
-        canvasRef.current.loadCanvas(response.data);
+        // Before loading, store the current ID state so we can properly restore nodes
+        const originalResponse = response.data;
+        
+        console.log('Loading workflow canvas data:', originalResponse);
+        
+        // Load canvas with data
+        canvasRef.current.loadCanvas(originalResponse);
         console.log('Canvas loaded successfully');
       }
     } catch (err) {
@@ -235,6 +297,7 @@ export const useAutoSaveCanvas = (workflowId, canvasRef, saveInterval = 10000) =
   return {
     isLoading,
     lastSaved,
+    justSaved,
     error,
     manualSave,
     reloadCanvas: loadCanvas

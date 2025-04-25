@@ -1,6 +1,6 @@
-import React, { useRef, useImperativeHandle, forwardRef } from 'react';
-import { ReactFlowProvider } from '@xyflow/react';
 import { Transition } from '@headlessui/react';
+import { ReactFlowProvider } from '@xyflow/react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import WorkflowCanvas from './WorkflowCanvas';
 import { useAutoSaveCanvas } from './hooks';
 
@@ -13,7 +13,7 @@ const WorkflowCanvasWrapper = forwardRef((props, ref) => {
   const canvasRef = useRef(null);
   
   // Use auto-save hook to automatically save and load canvas data
-  const { isLoading, lastSaved, error } = useAutoSaveCanvas(workflowId, canvasRef);
+  const { isLoading, lastSaved, justSaved, error } = useAutoSaveCanvas(workflowId, canvasRef);
   
   // Forward methods from WorkflowCanvas to parent components
   useImperativeHandle(ref, () => ({
@@ -43,7 +43,7 @@ const WorkflowCanvasWrapper = forwardRef((props, ref) => {
 
   return (
     <ReactFlowProvider>
-      {/* Loading overlay */}
+
       <Transition
         show={isLoading}
         enter="transition-opacity duration-300"
@@ -68,13 +68,6 @@ const WorkflowCanvasWrapper = forwardRef((props, ref) => {
         triggerName={triggerName} 
         triggerID={triggerID} 
       />
-      
-      {/* Last saved indicator (only shown when not loading and when there was a successful save) */}
-      {!isLoading && lastSaved && (
-        <div className="absolute bottom-2 right-2 text-xs text-gray-600 bg-white/80 px-2 py-1 rounded-md">
-          Last saved: {lastSaved.toLocaleTimeString()}
-        </div>
-      )}
       
       {/* Error indicator */}
       {error && (

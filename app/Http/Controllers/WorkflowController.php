@@ -169,22 +169,68 @@ class WorkflowController extends Controller
             $workflow->actions()->delete();
             $workflow->connections()->delete();
             
-            // Create new actions
+            // Track old ID to new ID mapping
+            $idMapping = [];
+            
+            // Get the first action from the database to use for trigger nodes (typically ID 1 for "Send Email")
+            // Using a fixed ID is safer than querying each time, as we know this ID exists
+            $defaultActionId = 1; // This should be an ID that definitely exists in your actions table
+            
+            // Create new actions and track their IDs for connection mapping
             foreach ($validated['actions'] as $actionData) {
-                $workflow->actions()->create([
-                    'action_id' => $actionData['action_id'],
-                    'configuration_json' => $actionData['configuration_json'] ?? null,
+                // Store the original frontend ID before creating the action
+                $originalId = $actionData['id'];
+                
+                // For non-trigger nodes, ensure action_id is set to prevent unwanted defaults
+                if (($actionData['type'] ?? '') !== 'trigger' && empty($actionData['action_id'])) {
+                    // Skip nodes without action_id to prevent unwanted Send Email nodes
+                    continue;
+                }
+                
+                // Prepare data for database insertion
+                $actionDbData = [
                     'x' => $actionData['x'],
                     'y' => $actionData['y'],
-                ]);
+                    'type' => $actionData['type'] ?? 'action',
+                    'label' => $actionData['label'] ?? null,
+                    'configuration_json' => $actionData['configuration_json'] ?? [],
+                ];
+                
+                // Handle action_id specially for trigger nodes
+                if (($actionData['type'] ?? '') === 'trigger') {
+                    // Use the default action_id (typically 1) but mark the node as 'trigger' type
+                    // The frontend will recognize this as a trigger by the 'type' field, not by action_id
+                    $actionDbData['action_id'] = $defaultActionId;
+                } else {
+                    // Regular action node
+                    $actionDbData['action_id'] = $actionData['action_id'];
+                }
+                
+                // Create the action
+                $action = $workflow->actions()->create($actionDbData);
+                
+                // Map the original ID to the new database ID
+                $idMapping[$originalId] = $action->id;
             }
             
-            // Create new connections only if they exist
+            // Create new connections only if they exist, using the mapped IDs
             if (!empty($validated['connections'])) {
                 foreach ($validated['connections'] as $connectionData) {
+                    $sourceId = $connectionData['source_node_id'];
+                    $targetId = $connectionData['target_node_id'];
+                    
+                    // Skip connections if source or target was skipped due to validation
+                    if (!isset($idMapping[$sourceId]) || !isset($idMapping[$targetId])) {
+                        continue;
+                    }
+                    
+                    // Map to new IDs
+                    $mappedSourceId = $idMapping[$sourceId];
+                    $mappedTargetId = $idMapping[$targetId];
+                    
                     $workflow->connections()->create([
-                        'source_node_id' => $connectionData['source_node_id'],
-                        'target_node_id' => $connectionData['target_node_id'],
+                        'source_node_id' => $mappedSourceId,
+                        'target_node_id' => $mappedTargetId,
                     ]);
                 }
             }
@@ -194,6 +240,8 @@ class WorkflowController extends Controller
             return response()->json([
                 'message' => 'Workflow canvas saved successfully',
                 'workflow' => $workflow->fresh(['actions.action', 'connections']),
+                // Include the ID mapping for the frontend to use
+                'id_mapping' => $idMapping
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -211,8 +259,29 @@ class WorkflowController extends Controller
     {
         $workflow->load(['actions.action', 'connections']);
         
+        // Log node counts and types for debugging
+        $nodeCount = $workflow->actions->count();
+        $triggerNodes = $workflow->actions->where('type', 'trigger')->count();
+        $actionNodes = $workflow->actions->where('type', 'action')->count();
+        $sendEmailNodes = $workflow->actions->where('action_id', 1)->count();
+        
+        // Add debug info to response
         return response()->json([
             'workflow' => $workflow,
+            'debug' => [
+                'total_nodes' => $nodeCount,
+                'trigger_nodes' => $triggerNodes,
+                'action_nodes' => $actionNodes,
+                'send_email_nodes' => $sendEmailNodes,
+                'all_actions' => $workflow->actions->map(function($action) {
+                    return [
+                        'id' => $action->id,
+                        'type' => $action->type,
+                        'action_id' => $action->action_id,
+                        'label' => $action->label
+                    ];
+                })
+            ]
         ]);
     }
 }

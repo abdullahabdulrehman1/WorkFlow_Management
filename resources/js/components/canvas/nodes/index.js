@@ -1,8 +1,8 @@
-import TriggerNode from './TriggerNode';
 import ActionNode from './ActionNode';
+import TriggerNode from './TriggerNode';
 
 // Export individual components for direct imports
-export { TriggerNode, ActionNode };
+export { ActionNode, TriggerNode };
 
 // Export nodeTypes object for React Flow
 export const nodeTypes = {

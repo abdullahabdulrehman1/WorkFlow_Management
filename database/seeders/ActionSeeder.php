@@ -3,7 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\Action;
+use App\Models\WorkflowAction;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ActionSeeder extends Seeder
 {
@@ -12,8 +15,16 @@ class ActionSeeder extends Seeder
      */
     public function run(): void
     {
+        // Temporarily disable foreign key checks
+        Schema::disableForeignKeyConstraints();
+        
+        // Delete existing actions
+        Action::query()->delete();
+        
+        // Define exactly the three actions needed with specific IDs
         $actions = [
             [
+                'id' => 1,
                 'name' => 'Send Email',
                 'fields_required' => json_encode([
                     'to' => [
@@ -31,76 +42,45 @@ class ActionSeeder extends Seeder
                 ]),
             ],
             [
-                'name' => 'Create Record',
+                'id' => 2,
+                'name' => 'Send SMS',
                 'fields_required' => json_encode([
-                    'model' => [
-                        'type' => 'select',
-                        'options' => ['User', 'Product', 'Order'],
+                    'to' => [
+                        'type' => 'phone',
                         'required' => true,
                     ],
-                    'data' => [
-                        'type' => 'json',
+                    'message' => [
+                        'type' => 'text',
                         'required' => true,
                     ],
                 ]),
             ],
             [
-                'name' => 'HTTP Request',
+                'id' => 3,
+                'name' => 'In-app notification',
                 'fields_required' => json_encode([
-                    'url' => [
-                        'type' => 'string',
-                        'required' => true,
-                    ],
-                    'method' => [
-                        'type' => 'select',
-                        'options' => ['GET', 'POST', 'PUT', 'DELETE'],
-                        'required' => true,
-                    ],
-                    'headers' => [
-                        'type' => 'json',
-                        'required' => false,
-                    ],
-                    'body' => [
-                        'type' => 'json',
-                        'required' => false,
-                    ],
-                ]),
-            ],
-            [
-                'name' => 'Wait/Delay',
-                'fields_required' => json_encode([
-                    'duration' => [
+                    'user_id' => [
                         'type' => 'number',
                         'required' => true,
                     ],
-                    'unit' => [
+                    'message' => [
+                        'type' => 'text',
+                        'required' => true,
+                    ],
+                    'type' => [
                         'type' => 'select',
-                        'options' => ['seconds', 'minutes', 'hours', 'days'],
+                        'options' => ['info', 'warning', 'error', 'success'],
                         'required' => true,
-                    ],
-                ]),
-            ],
-            [
-                'name' => 'Condition/Branch',
-                'fields_required' => json_encode([
-                    'condition' => [
-                        'type' => 'expression',
-                        'required' => true,
-                    ],
-                    'true_path' => [
-                        'type' => 'branch',
-                        'required' => false,
-                    ],
-                    'false_path' => [
-                        'type' => 'branch',
-                        'required' => false,
                     ],
                 ]),
             ],
         ];
 
         foreach ($actions as $action) {
-            Action::create($action);
+            Action::updateOrCreate(['id' => $action['id']], $action);
         }
+        
+        // Re-enable foreign key checks
+        Schema::enableForeignKeyConstraints();
     }
 }
