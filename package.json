@@ -6,13 +6,12 @@
         "dev": "vite --host",
         "capacitor:sync": "npx cap sync",
         "capacitor:build": "vite build && npx cap sync",
+        "android-l": "npx cap run android -l --port=8000",
         "capacitor:run:android": "npx cap run android",
         "capacitor:open:android": "npx cap open android",
-        "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l\"",
-        "artisan:live:android": "cross-env concurrently \"php artisan serve --host=0.0.0.0 --port=$VITE_PORT\" \"npx cap run android -l\"",
-        "cap:dev": "vite --host && npx cap sync android && npx cap open android",
+        "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l \"",
         "mobile:dev": "cross-env concurrently \"vite --host\" \"npx cap sync android && npx cap run android -l\"",
-        "full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"npm run dev\"",
+        "app": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"npm run dev\"",
         "mobile:full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"vite --host\" \"npx cap sync android && npx cap run android -l\""
     },
     "devDependencies": {
