@@ -1,0 +1,13 @@
+{
+  "appId": "com.example.app",
+  "appName": "workflow",
+  "webDir": "public/build",
+  "server": {
+    "url": "$DEV_SERVER_HOST:DEV_SERVER_PORT",
+    "cleartext": true,
+    "androidScheme": "http"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

@@ -12,7 +12,7 @@ import Pagination from '../components/pagination/pagination'
 import { IconButton, SearchInput } from '../components/reusable'
 import WorkflowTable from '../components/table'
 
-export default function Workflows() {
+export default function Workflows () {
     // State management
     const [state, setState] = useState({
         search: '',
@@ -30,29 +30,41 @@ export default function Workflows() {
     })
 
     // Destructuring for cleaner code
-    const { 
-        search, activeTab, currentPage, isModalOpen, modalMode, selectedWorkflow, 
-        isMobile, workflows, triggers, loading, error, pagination 
+    const {
+        search,
+        activeTab,
+        currentPage,
+        isModalOpen,
+        modalMode,
+        selectedWorkflow,
+        isMobile,
+        workflows,
+        triggers,
+        loading,
+        error,
+        pagination
     } = state
 
     // Helper function to update state
-    const updateState = (updates) => setState(prev => ({ ...prev, ...updates }))
-    
+    const updateState = updates => setState(prev => ({ ...prev, ...updates }))
+
     // Format date helper
-    const formatDate = (dateString) => dateString ? new Date(dateString).toLocaleString() : ''
+    const formatDate = dateString =>
+        dateString ? new Date(dateString).toLocaleString() : ''
 
     // API calls with consolidated error handling
     const apiCall = async (method, endpoint, data = null, params = null) => {
         try {
             const config = { ...(params && { params }) }
-            const response = method === 'get' 
-                ? await axios.get(endpoint, config)
-                : method === 'post' 
+            const response =
+                method === 'get'
+                    ? await axios.get(endpoint, config)
+                    : method === 'post'
                     ? await axios.post(endpoint, data)
                     : method === 'put'
-                        ? await axios.put(endpoint, data)
-                        : await axios.delete(endpoint)
-            
+                    ? await axios.put(endpoint, data)
+                    : await axios.delete(endpoint)
+
             return { success: true, data: response.data }
         } catch (err) {
             console.error(`API error (${method} ${endpoint}):`, err)
@@ -63,8 +75,14 @@ export default function Workflows() {
     // Fetch workflows from the API
     const fetchWorkflows = async (page = currentPage, searchQuery = search) => {
         updateState({ loading: true })
-        const { success, data, error: apiError } = await apiCall('get', '/api/workflows', null, {
-            page, search: searchQuery, per_page: pagination.perPage
+        const {
+            success,
+            data,
+            error: apiError
+        } = await apiCall('get', '/api/workflows', null, {
+            page,
+            search: searchQuery,
+            per_page: pagination.perPage
         })
 
         if (success) {
@@ -73,7 +91,7 @@ export default function Workflows() {
                 created_at_formatted: formatDate(workflow.created_at),
                 updated_at_formatted: formatDate(workflow.updated_at)
             }))
-            
+
             updateState({
                 workflows: formattedWorkflows,
                 pagination: {
@@ -91,42 +109,55 @@ export default function Workflows() {
 
     // Workflow CRUD operations
     const workflowOperations = {
-        create: async (data) => {
+        create: async data => {
             const result = await apiCall('post', '/api/workflows', data)
             if (result.success) {
                 fetchWorkflows()
-                toast?.success('Workflow created successfully') || alert('Workflow created successfully')
+                toast?.success('Workflow created successfully') ||
+                    alert('Workflow created successfully')
                 return result.data
             } else {
-                toast?.error('Failed to create workflow') || alert('Failed to create workflow')
+                toast?.error('Failed to create workflow') ||
+                    alert('Failed to create workflow')
                 throw result.error
             }
         },
-        
-        delete: async (workflow) => {
-            const result = await apiCall('delete', `/api/workflows/${workflow.id}`)
+
+        delete: async workflow => {
+            const result = await apiCall(
+                'delete',
+                `/api/workflows/${workflow.id}`
+            )
             if (result.success) {
                 fetchWorkflows()
-                toast?.success('Workflow deleted successfully') || alert('Workflow deleted successfully')
+                toast?.success('Workflow deleted successfully') ||
+                    alert('Workflow deleted successfully')
                 return { success: true }
             } else {
-                toast?.error('Failed to delete workflow') || alert('Failed to delete workflow')
+                toast?.error('Failed to delete workflow') ||
+                    alert('Failed to delete workflow')
                 throw result.error
             }
         },
-        
-        rename: async (workflow) => {
-            const result = await apiCall('put', `/api/workflows/${workflow.id}`, {
-                name: workflow.name,
-                trigger_id: workflow.trigger_id,
-                status: workflow.status || 'draft'
-            })
+
+        rename: async workflow => {
+            const result = await apiCall(
+                'put',
+                `/api/workflows/${workflow.id}`,
+                {
+                    name: workflow.name,
+                    trigger_id: workflow.trigger_id,
+                    status: workflow.status || 'draft'
+                }
+            )
             if (result.success) {
                 fetchWorkflows()
-                toast?.success('Workflow renamed successfully') || alert('Workflow renamed successfully')
+                toast?.success('Workflow renamed successfully') ||
+                    alert('Workflow renamed successfully')
                 return result.data
             } else {
-                toast?.error('Failed to rename workflow') || alert('Failed to rename workflow')
+                toast?.error('Failed to rename workflow') ||
+                    alert('Failed to rename workflow')
                 throw result.error
             }
         }
@@ -135,27 +166,37 @@ export default function Workflows() {
     // UI interaction handlers
     const handlers = {
         openModal: (mode, workflow = null) => {
-            updateState({ modalMode: mode, selectedWorkflow: workflow, isModalOpen: true })
+            updateState({
+                modalMode: mode,
+                selectedWorkflow: workflow,
+                isModalOpen: true
+            })
         },
-        
+
         workflowAction: (action, workflow) => {
             if (action === 'Delete') handlers.openModal('delete', workflow)
             else if (action === 'Rename') handlers.openModal('rename', workflow)
-            else if (action === 'Edit') router.visit(`/create-new-workflow?id=${workflow.id}`)
-            else console.log(`Action ${action} not implemented for workflow ${workflow.id}`)
+            else if (action === 'Edit')
+                router.visit(`/create-new-workflow?id=${workflow.id}`)
+            else
+                console.log(
+                    `Action ${action} not implemented for workflow ${workflow.id}`
+                )
         },
-        
-        modalSubmit: (data) => workflowOperations[modalMode](data)
+
+        modalSubmit: data => workflowOperations[modalMode](data)
     }
 
     // Initialize data and handle window resizing
     useEffect(() => {
         fetchWorkflows(1)
         apiCall('get', '/triggers').then(result => {
-            if (result.success) updateState({ triggers: result.data.triggers || [] })
+            if (result.success)
+                updateState({ triggers: result.data.triggers || [] })
         })
-        
-        const handleResize = () => updateState({ isMobile: window.innerWidth <= 768 })
+
+        const handleResize = () =>
+            updateState({ isMobile: window.innerWidth <= 768 })
         handleResize()
         window.addEventListener('resize', handleResize)
         return () => window.removeEventListener('resize', handleResize)
@@ -171,7 +212,7 @@ export default function Workflows() {
         return (
             <DropdownProvider>
                 <WorkflowLayout breadcrumbText='Workflows'>
-                    <div className="flex justify-center items-center h-64">
+                    <div className='flex justify-center items-center h-64'>
                         <p>Loading workflows...</p>
                     </div>
                 </WorkflowLayout>
@@ -182,23 +223,46 @@ export default function Workflows() {
     return (
         <DropdownProvider>
             <WorkflowLayout breadcrumbText='Workflows'>
-                {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
-                
-                <div className={`flex justify-between items-center mb-4 ${isMobile ? 'flex-col gap-4' : ''}`}>
-                    <ReusableButton onClick={() => handlers.openModal('create')} isActive={true}>
+                {error && (
+                    <div className='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4'>
+                        {error}
+                    </div>
+                )}
+
+                <div
+                    className={`flex justify-between items-center mb-4 ${
+                        isMobile ? 'flex-col gap-4' : ''
+                    }`}
+                >
+                    <ReusableButton
+                        onClick={() => handlers.openModal('create')}
+                        isActive={true}
+                    >
                         + Build New Workflow
                     </ReusableButton>
-                    
-                    <div className={`flex gap-2 items-center ${isMobile ? 'flex-col' : ''}`}>
-                        <div className={`flex gap-2 ${isMobile ? 'flex-col' : ''}`}>
-                            <ReusableButton 
-                                onClick={() => updateState({ activeTab: 'workflows' })} 
+
+                    <div
+                        className={`flex gap-2 items-center ${
+                            isMobile ? 'flex-col' : ''
+                        }`}
+                    >
+                        <div
+                            className={`flex gap-2 ${
+                                isMobile ? 'flex-col' : ''
+                            }`}
+                        >
+                            <ReusableButton
+                                onClick={() =>
+                                    updateState({ activeTab: 'workflows' })
+                                }
                                 isActive={activeTab === 'workflows'}
                             >
                                 Workflows
                             </ReusableButton>
-                            <ReusableButton 
-                                onClick={() => updateState({ activeTab: 'executed' })} 
+                            <ReusableButton
+                                onClick={() =>
+                                    updateState({ activeTab: 'executed' })
+                                }
                                 isActive={activeTab === 'executed'}
                             >
                                 Executed Workflows
@@ -206,18 +270,27 @@ export default function Workflows() {
                         </div>
                         <SearchInput
                             value={search}
-                            onChange={e => updateState({ search: e.target.value })}
+                            onChange={e =>
+                                updateState({ search: e.target.value })
+                            }
                             placeholder='Search'
                         />
-                        <IconButton icon={Search} onClick={() => fetchWorkflows(1, search)} />
+                        <IconButton
+                            icon={Search}
+                            onClick={() => fetchWorkflows(1, search)}
+                        />
                         <IconButton icon={Filter} />
                     </div>
                 </div>
-                
+
                 <div className='overflow-visible relative z-[50] horizontal-scroll-hidden'>
-                    <WorkflowTable 
-                        workflows={workflows} 
-                        onNavigate={(workflow) => router.visit(`/create-new-workflow?id=${workflow.id}`)}
+                    <WorkflowTable
+                        workflows={workflows}
+                        onNavigate={workflow =>
+                            router.visit(
+                                `/create-new-workflow?id=${workflow.id}`
+                            )
+                        }
                         onActionClick={handlers.workflowAction}
                     />
                 </div>
@@ -225,7 +298,9 @@ export default function Workflows() {
                 <Pagination
                     currentPage={pagination.currentPage}
                     totalPages={pagination.lastPage}
-                    onPageChange={(newPage) => updateState({ currentPage: newPage })}
+                    onPageChange={newPage =>
+                        updateState({ currentPage: newPage })
+                    }
                 />
 
                 <Modal

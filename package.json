@@ -3,19 +3,34 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite --host",
+        "capacitor:sync": "npx cap sync",
+        "capacitor:build": "vite build && npx cap sync",
+        "capacitor:run:android": "npx cap run android",
+        "capacitor:open:android": "npx cap open android",
+        "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l\"",
+        "artisan:live:android": "cross-env concurrently \"php artisan serve --host=0.0.0.0 --port=$VITE_PORT\" \"npx cap run android -l\"",
+        "cap:dev": "vite --host && npx cap sync android && npx cap open android",
+        "mobile:dev": "cross-env concurrently \"vite --host\" \"npx cap sync android && npx cap run android -l\"",
+        "full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"npm run dev\"",
+        "mobile:full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"vite --host\" \"npx cap sync android && npx cap run android -l\""
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.4",
         "autoprefixer": "^10.4.21",
         "axios": "^1.8.2",
         "concurrently": "^9.0.1",
+        "cross-env": "^7.0.3",
+        "dotenv": "^16.5.0",
         "laravel-vite-plugin": "^1.2.0",
         "postcss": "^8.5.3",
         "tailwindcss": "^4.1.4",
         "vite": "^6.2.4"
     },
     "dependencies": {
+        "@capacitor/android": "^7.2.0",
+        "@capacitor/cli": "^7.2.0",
+        "@capacitor/core": "^7.2.0",
         "@floating-ui/react": "^0.27.8",
         "@headlessui/react": "^2.2.2",
         "@inertiajs/react": "^2.0.8",
