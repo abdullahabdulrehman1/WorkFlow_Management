@@ -11,6 +11,7 @@
         "capacitor:open:android": "npx cap open android",
         "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l \"",
         "mobile:dev": "cross-env concurrently \"vite --host\" \"npx cap sync android && npx cap run android -l\"",
+        "pwa": "vite build && php artisan serve --host=0.0.0.0 --port=8000",
         "app": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"npm run dev\"",
         "mobile:full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"vite --host\" \"npx cap sync android && npx cap run android -l\""
     },
@@ -24,7 +25,8 @@
         "laravel-vite-plugin": "^1.2.0",
         "postcss": "^8.5.3",
         "tailwindcss": "^4.1.4",
-        "vite": "^6.2.4"
+        "vite": "^6.2.4",
+        "vite-plugin-pwa": "^1.0.0"
     },
     "dependencies": {
         "@capacitor/android": "^7.2.0",

@@ -4,6 +4,19 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 import React from 'react';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register service worker for PWA functionality
+const updateSW = registerSW({
+    onNeedRefresh() {
+        console.log('New version available');
+        // You could show a UI notification here to prompt the user to refresh
+    },
+    onOfflineReady() {
+        console.log('PWA is ready to work offline');
+        // You could show a UI notification here that the app is ready for offline use
+    }
+});
 
 createInertiaApp({
     resolve: (name) =>
