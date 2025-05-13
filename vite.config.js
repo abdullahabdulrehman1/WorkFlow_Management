@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: true
+          enabled: false
         },
         manifest: {
           name: 'Workflow Management',
@@ -116,7 +116,7 @@ export default defineConfig(({ mode }) => {
       host: HOST,
       port: VITE_PORT,
       strictPort: true,
-      https: true,
+      https: false,
       hmr: {
         host: HOST,
         port: VITE_PORT
