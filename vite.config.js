@@ -116,6 +116,7 @@ export default defineConfig(({ mode }) => {
       host: HOST,
       port: VITE_PORT,
       strictPort: true,
+      https: true,
       hmr: {
         host: HOST,
         port: VITE_PORT
