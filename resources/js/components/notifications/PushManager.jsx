@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-// Function to convert base64 string to Uint8Array for applicationServerKey
+// Function to convert base64 string to Uint8Array
 function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
@@ -18,174 +18,160 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
 }
 
-// Function to check if push notifications are supported
-function isPushNotificationSupported() {
-    return 'serviceWorker' in navigator && 'PushManager' in window;
-}
-
-// Function to get existing subscription
-async function getExistingSubscription() {
-    try {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (!registration) return null;
-        
-        const subscription = await registration.pushManager.getSubscription();
-        return subscription;
-    } catch (error) {
-        console.error('Error getting existing subscription:', error);
-        return null;
+// Function to show a simple desktop notification as fallback
+function showFallbackNotification(title, body) {
+    if (!("Notification" in window)) {
+        console.log("This browser does not support desktop notifications");
+        return;
     }
-}
-
-// Function to register service worker
-async function registerServiceWorker() {
-    try {
-        let registration = await navigator.serviceWorker.getRegistration();
-        
-        if (!registration) {
-            registration = await navigator.serviceWorker.register('/sw.js', {
-                scope: '/'
-            });
-            console.log('Service Worker registered successfully:', registration);
-        } else {
-            console.log('Service Worker already registered');
-        }
-        
-        return registration;
-    } catch (error) {
-        console.error('Error registering service worker:', error);
-        throw error;
+    
+    if (Notification.permission === "granted") {
+        new Notification(title, {
+            body: body,
+            icon: '/logo.png'
+        });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: '/logo.png'
+                });
+            }
+        });
     }
 }
 
 // Function to subscribe to push notifications
-export async function subscribeToPush(retries = 3) {
-    if (!isPushNotificationSupported()) {
-        console.log('Push notifications not supported in this browser');
-        toast.error('Push notifications are not supported in your browser');
-        return false;
-    }
-    
+export async function subscribeToPush() {
     try {
-        // Check for existing subscription first
-        const existingSubscription = await getExistingSubscription();
-        if (existingSubscription) {
-            console.log('Already subscribed to push notifications');
-            return true;
+        // First, check if push is supported
+        if (!('serviceWorker' in navigator && 'PushManager' in window)) {
+            console.log('Push notifications not supported');
+            return { success: false, reason: 'unsupported' };
+        }
+        
+        // Unsubscribe from existing subscriptions first
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+                await subscription.unsubscribe();
+                console.log('Unsubscribed from previous push subscription');
+            }
         }
         
         // Register service worker
-        const registration = await registerServiceWorker();
-        
-        // Wait until the service worker is ready
+        const swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
         await navigator.serviceWorker.ready;
         
-        // Request notification permission
+        // Request permission
         const permission = await Notification.requestPermission();
-        
         if (permission !== 'granted') {
             console.log('Notification permission denied');
-            
-            // Show a message to the user about enabling notifications
-            if (permission === 'denied') {
-                toast.error('Notification permission denied. Please enable notifications in your browser settings for workflow alerts.');
-            }
-            return false;
+            return { success: false, reason: 'permission-denied' };
         }
         
-        // Get the VAPID public key from meta tag
+        // Get VAPID public key
         const vapidPublicKey = document.querySelector('meta[name="vapid-public-key"]')?.content;
-        
         if (!vapidPublicKey) {
             console.error('VAPID public key not found');
-            toast.error('Unable to configure notifications: Missing security key');
-            return false;
+            return { success: false, reason: 'missing-key' };
         }
         
-        // Convert VAPID public key to the format expected by the browser
-        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-        
-        // Subscribe to push notifications
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey,
-        });
-        
-        console.log('Push subscription successful:', subscription);
-        
-        // Send the subscription to the server
-        await axios.post('/api/subscribe', {
-            endpoint: subscription.endpoint,
-            public_key: subscription.toJSON().keys.p256dh,
-            auth_token: subscription.toJSON().keys.auth,
-        });
-        
-        console.log('Subscription sent to server successfully');
-        toast.success('Notifications enabled successfully!');
-        return true;
-    } catch (error) {
-        console.error('Error subscribing to push notifications:', error);
-        
-        // Implement retry logic
-        if (retries > 0) {
-            console.log(`Retrying subscription... (${retries} attempts left)`);
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    resolve(subscribeToPush(retries - 1));
-                }, 2000); // Wait 2 seconds before retrying
+        try {
+            // Subscribe
+            const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+            const newSubscription = await swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey
             });
-        } else {
-            toast.error('Failed to enable notifications. Please try again later.');
-            return false;
+            
+            // Get subscription as JSON
+            const subscriptionJson = newSubscription.toJSON();
+            
+            // Send to server
+            const response = await axios.post('/api/subscribe', {
+                endpoint: newSubscription.endpoint,
+                public_key: subscriptionJson.keys.p256dh,
+                auth_token: subscriptionJson.keys.auth,
+                content_encoding: 'aes128gcm'
+            });
+            
+            if (response.data.success) {
+                console.log('Push subscription registered successfully');
+                return { success: true };
+            } else {
+                console.error('Server rejected subscription:', response.data);
+                return { success: false, reason: 'server-rejected' };
+            }
+        } catch (error) {
+            console.error('Error during subscription process:', error);
+            return { success: false, reason: 'subscription-error', error };
         }
+    } catch (error) {
+        console.error('Error subscribing to push:', error);
+        return { success: false, reason: 'general-error', error };
     }
 }
 
-// Function to test push notification
-export async function sendTestNotification() {
+// Function to send push notification
+export async function sendNotification(title, body, url = null) {
     try {
         const response = await axios.post('/api/push-notify', {
-            title: 'Test Notification',
-            body: 'This is a test notification from Workflow Management'
+            title,
+            body,
+            url
         });
+        
+        console.log('Push notification response:', response.data);
+        
+        // If server indicates we should use fallback notifications
+        if (!response.data.sent && response.data.fallbackEnabled) {
+            console.log('Using fallback notification mechanism');
+            showFallbackNotification(title, body);
+        }
         
         return response.data;
     } catch (error) {
-        console.error('Error sending test notification:', error);
-        throw error;
+        console.error('Error sending push notification:', error);
+        
+        // Show fallback notification if server request fails
+        showFallbackNotification(title, body);
+        
+        return { sent: false, error: error.message };
     }
 }
 
 // React component that initializes push notifications
 const PushManager = () => {
-    const [initialized, setInitialized] = useState(false);
-    
     useEffect(() => {
-        // Try to subscribe to push notifications when the component mounts
-        // but only once
-        if (!initialized) {
-            const initializePushNotifications = async () => {
-                // Only attempt to initialize if not in an iframe
-                if (window.self === window.top) {
-                    try {
-                        await subscribeToPush();
-                        setInitialized(true);
-                    } catch (error) {
-                        console.error('Failed to initialize push notifications', error);
+        const initPushNotifications = async () => {
+            // Dont run in iframes
+            if (window.self !== window.top) return;
+            
+            try {
+                // Wait a moment for page to load fully
+                setTimeout(async () => {
+                    const result = await subscribeToPush();
+                    
+                    if (!result.success) {
+                        console.log('Push notifications not enabled:', result.reason);
+                        
+                        // Only show permission errors to user
+                        if (result.reason === 'permission-denied') {
+                            toast.error('Please enable notifications for workflow alerts');
+                        }
                     }
-                }
-            };
-            
-            // Delay initialization slightly to allow page to load
-            const timer = setTimeout(() => {
-                initializePushNotifications();
-            }, 3000);
-            
-            return () => clearTimeout(timer);
-        }
-    }, [initialized]);
+                }, 2000);
+            } catch (error) {
+                console.error('Error initializing push notifications:', error);
+            }
+        };
+        
+        initPushNotifications();
+    }, []);
     
-    // This component doesn't render anything visible
     return null;
 };
 

@@ -43,34 +43,41 @@ export default function CreateNewWorkflow() {
         }
     }, [workflow]);
     
-    // Send desktop notification as a fallback when push notification fails
-    const sendDesktopNotification = (title, body) => {
-        // Check if the browser supports notifications
+    // Function to show desktop notifications
+    const showDesktopNotification = (title, body) => {
         if (!("Notification" in window)) {
             console.log("This browser does not support desktop notifications");
-            return;
+            return false;
         }
         
-        // Let's check whether notification permissions have already been granted
         if (Notification.permission === "granted") {
-            // If it's okay let's create a notification
-            new Notification(title, {
-                body: body,
-                icon: '/logo.png'
-            });
-        } 
-        // Otherwise, we need to ask the user for permission
-        else if (Notification.permission !== "denied") {
+            try {
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: '/logo.png',
+                    tag: 'workflow-notification-' + Date.now(),
+                    requireInteraction: true,
+                    silent: false
+                });
+                notification.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+                return true;
+            } catch (error) {
+                console.error("Error showing notification:", error);
+                return false;
+            }
+        } else if (Notification.permission !== "denied") {
             Notification.requestPermission().then(permission => {
-                // If the user accepts, let's create a notification
                 if (permission === "granted") {
-                    new Notification(title, {
-                        body: body,
-                        icon: '/logo.png'
-                    });
+                    showDesktopNotification(title, body);
+                    return true;
                 }
             });
         }
+        
+        return false;
     };
     
     // Handle save workflow
@@ -85,41 +92,50 @@ export default function CreateNewWorkflow() {
         
         if (result?.success) {
             // Update URL for new workflows
-            if (result.workflowId !== workflowId) {
+            if (result.workflowId !== workflowId && result.workflowId) {
                 const newUrl = new URL(window.location);
                 newUrl.searchParams.set('id', result.workflowId);
                 window.history.pushState({}, '', newUrl);
             }
             
             // Save canvas data
-            await saveCanvas(result.workflowId, canvasData);
+            await saveCanvas(result.workflowId || workflowId, canvasData);
             
             const notificationTitle = 'Workflow Saved';
             const notificationBody = `Your workflow "${workflow?.name || 'New workflow'}" has been saved successfully!`;
             
-            // Try to send push notification via server
+            let notificationShown = false;
+            
+            // Try to send push notification via server first
             try {
-                await axios.post('/api/push-notify', {
+                const response = await axios.post('/api/push-notify', {
                     title: notificationTitle,
-                    body: notificationBody
+                    body: notificationBody,
+                    url: window.location.href
                 }, {
                     headers: {
                         'X-CSRF-TOKEN': csrf_token
                     }
                 });
-                console.log('Push notification sent successfully');
-            } catch (error) {
-                console.error('Failed to send push notification:', error);
                 
-                // Show error only in development
-                if (process.env.NODE_ENV !== 'production') {
-                    console.error('Push notification error details:', error.response?.data || error.message);
+                console.log('Push notification response:', response.data);
+                
+                // If server-side push was successful
+                if (response.data && response.data.sent) {
+                    notificationShown = true;
+                    console.log('Server-side push notification sent successfully');
+                } 
+                // If server indicates we should use fallback or push failed
+                else if (response.data && response.data.fallbackEnabled) {
+                    console.log('Server recommended using fallback notification');
+                    notificationShown = showDesktopNotification(notificationTitle, notificationBody);
                 }
-                
-                // Fallback to desktop notification
-                sendDesktopNotification(notificationTitle, notificationBody);
-                
-                // Show toast notification as last resort
+            } catch (error) {
+                console.error('Error with push notification:', error);
+            }
+            
+            // Show toast notification if neither method worked
+            if (!notificationShown) {
                 toast.success(`${notificationTitle}: ${notificationBody}`);
             }
         }
