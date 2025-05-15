@@ -12,6 +12,9 @@
         <link rel="apple-touch-icon" href="{{ asset('icons/icon-192x192.png') }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
 
+        <!-- Push Notification VAPID Public Key -->
+        <meta name="vapid-public-key" content="{{ config('webpush.vapid.public_key') }}">
+
         <!-- Favicon and Browser Tab Icons -->
         <link rel="icon" href="{{ asset('z360.jpg') }}?v=1.0" type="image/jpeg">
         <link rel="shortcut icon" href="{{ asset('z360.jpg') }}?v=1.0" type="image/jpeg">

@@ -1,5 +1,6 @@
 <?php
 use App\Http\Controllers\ActionController;
+use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\TriggerController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Http\Request;
@@ -20,8 +21,14 @@ Route::get('/create-new-workflow', function () {
     return Inertia::render('CreateNewWorkflow');
 });
 
-// Wrapped all API routes in the 'web' middleware group with CSRF disabled
-Route::middleware([ 'api'])->group(function () {
+// Push Notification Routes - Using web middleware with CSRF protection
+Route::middleware(['web'])->group(function () {
+    Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
+    Route::post('/api/push-notify', [PushNotificationController::class, 'sendTestPush']);
+});
+
+// Wrapped all API routes in the 'api' middleware group
+Route::middleware(['api'])->group(function () {
     Route::get('/test-api', function () {
         return response()->json(['message' => 'Backend is running']);
     });

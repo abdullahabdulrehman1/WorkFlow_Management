@@ -5,6 +5,18 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 import React from 'react';
 import { registerSW } from 'virtual:pwa-register';
+import PushManager from './components/notifications/PushManager';
+
+// Standard service worker registration for push notifications
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        })
+        .catch(error => {
+            console.error('ServiceWorker registration failed: ', error);
+        });
+}
 
 // Register service worker for PWA functionality
 const updateSW = registerSW({
@@ -28,6 +40,7 @@ createInertiaApp({
         createRoot(el).render(
             <>
                 <App {...props} />
+                <PushManager /> {/* Add PushManager component */}
                 <Toaster 
                     position="top-center" 
                     gutter={12}

@@ -9,8 +9,12 @@ import WorkflowLayout from '../components/layout/WorkflowLayout'
 import WorkflowControls from '../components/WorkflowControls'
 import useWorkflow from '../hooks/useWorkflow'
 import useWorkflowCanvas from '../hooks/useWorkflowCanvas'
+import axios from 'axios'
 
 export default function CreateNewWorkflow() {
+    // Get csrf token from Inertia
+    const { csrf_token } = usePage().props
+    
     // Get workflow id from URL query string
     const urlParams = new URLSearchParams(window.location.search);
     const workflowId = urlParams.get('id');
@@ -39,6 +43,36 @@ export default function CreateNewWorkflow() {
         }
     }, [workflow]);
     
+    // Send desktop notification as a fallback when push notification fails
+    const sendDesktopNotification = (title, body) => {
+        // Check if the browser supports notifications
+        if (!("Notification" in window)) {
+            console.log("This browser does not support desktop notifications");
+            return;
+        }
+        
+        // Let's check whether notification permissions have already been granted
+        if (Notification.permission === "granted") {
+            // If it's okay let's create a notification
+            new Notification(title, {
+                body: body,
+                icon: '/logo.png'
+            });
+        } 
+        // Otherwise, we need to ask the user for permission
+        else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                // If the user accepts, let's create a notification
+                if (permission === "granted") {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/logo.png'
+                    });
+                }
+            });
+        }
+    };
+    
     // Handle save workflow
     const handleSave = async () => {
         if (!canvasRef.current) return;
@@ -59,6 +93,35 @@ export default function CreateNewWorkflow() {
             
             // Save canvas data
             await saveCanvas(result.workflowId, canvasData);
+            
+            const notificationTitle = 'Workflow Saved';
+            const notificationBody = `Your workflow "${workflow?.name || 'New workflow'}" has been saved successfully!`;
+            
+            // Try to send push notification via server
+            try {
+                await axios.post('/api/push-notify', {
+                    title: notificationTitle,
+                    body: notificationBody
+                }, {
+                    headers: {
+                        'X-CSRF-TOKEN': csrf_token
+                    }
+                });
+                console.log('Push notification sent successfully');
+            } catch (error) {
+                console.error('Failed to send push notification:', error);
+                
+                // Show error only in development
+                if (process.env.NODE_ENV !== 'production') {
+                    console.error('Push notification error details:', error.response?.data || error.message);
+                }
+                
+                // Fallback to desktop notification
+                sendDesktopNotification(notificationTitle, notificationBody);
+                
+                // Show toast notification as last resort
+                toast.success(`${notificationTitle}: ${notificationBody}`);
+            }
         }
     };
 
