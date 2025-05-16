@@ -49,7 +49,7 @@ const MobileWorkflowTable = ({ workflows, onNavigate, onActionClick }) => {
     }
 
     return (
-        <div className='space-y-4 h-[450px] overflow-auto flex flex-col pb-2'>
+        <div className='space-y-4 flex flex-col pb-2'>
             {workflows.length > 0 ? (
                 <div className='grid grid-cols-1 gap-4'>
                     {workflows.map((workflow, index) => {

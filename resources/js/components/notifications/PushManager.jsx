@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Function to convert base64 string to Uint8Array
 function urlBase64ToUint8Array(base64String) {
@@ -164,6 +165,12 @@ const PushManager = () => {
                         }
                     }
                 }, 2000);
+
+                // Request Local Notifications permission
+                const { granted } = await LocalNotifications.requestPermissions();
+                if (!granted) {
+                    console.log('Local notifications permission denied');
+                }
             } catch (error) {
                 console.error('Error initializing push notifications:', error);
             }

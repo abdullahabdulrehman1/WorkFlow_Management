@@ -9,5 +9,12 @@
   },
   "android": {
     "allowMixedContent": true
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_workflow",
+      "iconColor": "#4A90E2",
+      "sound": "notification_sound"
+    }
   }
 }

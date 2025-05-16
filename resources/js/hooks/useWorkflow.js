@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core'; // Import Capacitor to detect platform
 
 export default function useWorkflow(workflowId) {
     const [workflow, setWorkflow] = useState(null);
@@ -143,8 +145,39 @@ export default function useWorkflow(workflowId) {
         
             await axios.post(`/api/workflows/${workflowId}/canvas`, payload);
             setJustSaved(true);
-            toast.success('Workflow saved successfully');
             
+            // Only show native notifications on mobile platforms (Android/iOS)
+            const isMobile = Capacitor.isNativePlatform();
+            
+            if (isMobile) {
+                try {
+                    // Request permissions first
+                    await LocalNotifications.requestPermissions();
+                    
+                    const workflowName = workflow?.name || 'Workflow';
+                    
+                    // Use a simpler notification structure for reliability
+                    await LocalNotifications.schedule({
+                        notifications: [
+                            {
+                                title: "✅ Workflow Saved Successfully",
+                                body: `Your workflow "${workflowName}" has been saved`,
+                                id: Math.floor(Math.random() * 100000),
+                                // The smallIcon is automatically used from capacitor.config.json
+                                iconColor: "#4A90E2"
+                            }
+                        ]
+                    });
+                    
+                    console.log('Mobile notification sent successfully');
+                } catch (notifyError) {
+                    console.error('Failed to show notification:', notifyError);
+                }
+            } else {
+                // We're already showing a toast notification for web
+                console.log('On web platform, skipping LocalNotifications');
+            }
+
             return true;
         } catch (err) {
             console.error('Error saving canvas:', err);
