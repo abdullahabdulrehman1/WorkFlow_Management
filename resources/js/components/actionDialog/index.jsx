@@ -4,11 +4,19 @@ import { SearchBar, ActionItem } from './ReusableComponents';
 import VisibilityToggleButton from './VisibilityToggleButton';
 import SMSConfigurationForm from './SMSConfigurationForm';
 import ActionList from './ActionList';
+import useIsMobile from '../../hooks/useIsMobile';
 
 const ActionDialog = ({ isOpen = true, onClose }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [showSMSConfig, setShowSMSConfig] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const isMobile = useIsMobile();
+    
+    // If on mobile, we'll show the actions inside the canvas
+    // so we don't need to render the full ActionDialog
+    if (isMobile) {
+        return null;
+    }
 
     const toggleVisibility = () => {
         setIsVisible(!isVisible);
@@ -75,5 +83,12 @@ const ActionDialog = ({ isOpen = true, onClose }) => {
         </div>
     );
 };
+
+// Export actions list to be used by both desktop and mobile components
+export const getWorkflowActions = () => [
+    { label: 'Send Email', type: 'action', action_id: 1 },
+    { label: 'Send SMS', type: 'action', action_id: 2 },
+    { label: 'In-app notification', type: 'action', action_id: 3 },
+];
 
 export default ActionDialog;

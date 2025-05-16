@@ -28,16 +28,20 @@ const SearchBar = ({ placeholder, onSearch }) => {
     )
 }
 
-const ActionItem = ({ action, onDragStart }) => (
+const ActionItem = ({ action, onDragStart, compact = false }) => (
     <div
-        className='p-3 rounded-lg shadow-sm border bg-yellow-50 text-xs text-gray-700 hover:bg-yellow-100 cursor-pointer'
+        className={`${compact 
+            ? 'p-2 rounded-md' 
+            : 'p-3 rounded-lg'} shadow-sm border bg-yellow-50 text-xs text-gray-700 hover:bg-yellow-100 cursor-pointer`}
         draggable
         onDragStart={onDragStart}
     >
         <strong>{action.label}</strong>
-        <div className='text-[10px] text-gray-500'>
-            Description about {action.label.toLowerCase()}
-        </div>
+        {!compact && (
+            <div className='text-[10px] text-gray-500'>
+                Description about {action.label.toLowerCase()}
+            </div>
+        )}
     </div>
 )
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import useIsMobile from '../../hooks/useIsMobile';
 
 export function Breadcrumb({ text }) {
     return (
@@ -19,14 +20,16 @@ export function Button({ children, onClick, className }) {
     );
 }
 
-export function SearchInput({ value, onChange, placeholder }) {
+export function SearchInput({ value, onChange, placeholder, className }) {
+    const isMobile = useIsMobile();
+    
     return (
         <input
             type="text"
             value={value}
             onChange={onChange}
             placeholder={placeholder}
-            className="px-4 py-2 rounded-full border border-yellow-400 bg-white text-sm shadow focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            className={`${isMobile ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} rounded-full border border-yellow-400 bg-white shadow focus:outline-none focus:ring-2 focus:ring-yellow-400 ${className || ''}`}
         />
     );
 }

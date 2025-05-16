@@ -1,12 +1,17 @@
 import React from 'react'
 import TopNavbar from './../navbar/index'
+import MobileNavbar from './../navbar/MobileNavbar'
 import { Breadcrumb } from '../reusable'
 import Sidebar from '../sidebar/index'
 import Footer from '../footer'
 import { motion } from 'framer-motion'
 import { Link } from '@inertiajs/react'
+import useIsMobile from '../../hooks/useIsMobile'
 
 export default function WorkflowLayout ({ breadcrumbText, children }) {
+    // Check if we're on a mobile device
+    const isMobile = useIsMobile();
+
     // Animation variants
     const contentVariants = {
         hidden: { opacity: 0, y: 20 },
@@ -34,8 +39,9 @@ export default function WorkflowLayout ({ breadcrumbText, children }) {
 
     return (
         <div className='flex-1 p-6 bg-gradient-to-br from-blue-500 via-blue-300 to-blue-100 min-h-screen overflow-x-hidden'>
-            <TopNavbar />
-            <div className='flex mt-4'>
+            {isMobile ? <MobileNavbar /> : <TopNavbar />}
+            
+            <div className={`flex mt-4 ${isMobile ? 'flex-col' : ''}`}>
                 <div className='flex-1'>
                     <motion.div 
                         className='bg-white p-6 rounded-lg shadow-lg mr-2'
@@ -66,13 +72,15 @@ export default function WorkflowLayout ({ breadcrumbText, children }) {
                         </motion.div>
                     </motion.div>
                 </div>
-                <motion.div
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4, duration: 0.6, type: "spring", stiffness: 100 }}
-                >
-                    <Sidebar className='mt-4' />
-                </motion.div>
+                {!isMobile && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4, duration: 0.6, type: "spring", stiffness: 100 }}
+                    >
+                        <Sidebar className='mt-4' />
+                    </motion.div>
+                )}
             </div>
             <Footer />
         </div>

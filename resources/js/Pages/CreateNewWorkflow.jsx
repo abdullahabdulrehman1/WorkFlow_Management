@@ -9,6 +9,7 @@ import WorkflowLayout from '../components/layout/WorkflowLayout'
 import WorkflowControls from '../components/WorkflowControls'
 import useWorkflow from '../hooks/useWorkflow'
 import useWorkflowCanvas from '../hooks/useWorkflowCanvas'
+import useIsMobile from '../hooks/useIsMobile'
 import axios from 'axios'
 
 export default function CreateNewWorkflow() {
@@ -21,6 +22,9 @@ export default function CreateNewWorkflow() {
     
     // Canvas reference
     const canvasRef = useRef(null);
+    
+    // Check if mobile
+    const isMobile = useIsMobile();
     
     // Custom hooks
     const { 
@@ -166,8 +170,8 @@ export default function CreateNewWorkflow() {
                             onClearCanvas={clearCanvas}
                         />
                         
-                        <div className='flex gap-4 relative'>
-                            <div className='flex-1'>
+                        <div className={`flex ${isMobile ? 'flex-col' : 'gap-4'} relative`}>
+                            <div className={`${isMobile ? 'w-full' : 'flex-1'}`}>
                                 <WorkflowCanvasWrapper 
                                     ref={canvasRef} 
                                     workflowId={workflowId}
@@ -176,7 +180,7 @@ export default function CreateNewWorkflow() {
                                     triggerID={workflow?.trigger_id}
                                 />
                             </div>
-                            <div className='absolute top-0 right-0'>
+                            <div className={`${isMobile ? 'w-full mt-4' : 'absolute top-0 right-0'}`}>
                                 <ActionDialog />
                             </div>
                         </div>

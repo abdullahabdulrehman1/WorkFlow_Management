@@ -1,4 +1,4 @@
-import { useCallback, useImperativeHandle, forwardRef } from 'react'
+import { useCallback, useImperativeHandle, forwardRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
     ReactFlow,
@@ -8,6 +8,7 @@ import {
     useReactFlow
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { Maximize2, Minimize2 } from 'lucide-react'
 
 // Import node types
 import { nodeTypes } from './nodes'
@@ -25,6 +26,7 @@ import {
     useDragAndDrop,
     useCanvasInitialization
 } from './hooks'
+import useIsMobile from '../../hooks/useIsMobile'
 
 // Import UI components
 import {
@@ -43,14 +45,16 @@ import {
  * - Loading and saving workflow data
  */
 const WorkflowCanvas = forwardRef((props, ref) => {
-    const { workflowName, triggerName, triggerID } = props
+    const { workflowName, triggerName, triggerID, onFullscreenChange } = props
+    const isMobile = useIsMobile()
+    const [isFullscreen, setIsFullscreen] = useState(false)
 
     // Initialize states for nodes and edges
     const [nodes, setNodes, onNodesChange] = useNodesState([])
     const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
     // Get the React Flow utility for coordinate conversion
-    const { screenToFlowPosition } = useReactFlow()
+    const { screenToFlowPosition, fitView } = useReactFlow()
 
     // Custom hook for node deletion
     const deleteNode = useNodeDeletion(nodes, setNodes, setEdges)
@@ -65,6 +69,84 @@ const WorkflowCanvas = forwardRef((props, ref) => {
         setNodes,
         deleteNode
     )
+
+    // Toggle fullscreen mode
+    const toggleFullscreen = useCallback(() => {
+        setIsFullscreen(prev => !prev)
+        // Give the DOM time to update before refitting the view
+        setTimeout(() => fitView({ duration: 300 }), 50)
+    }, [fitView])
+    
+    // Notify parent component when fullscreen state changes
+    useEffect(() => {
+        if (onFullscreenChange) {
+            onFullscreenChange(isFullscreen)
+        }
+    }, [isFullscreen, onFullscreenChange])
+    
+    // Function to add a node at a specific position - used by mobile action tap event
+    const addNodeToCanvas = useCallback((actionData, flowPosition) => {
+        // Generate a stable numeric ID that won't conflict with existing nodes
+        const timestamp = Date.now();
+        const numericId = String(timestamp % 1000000000 + 100);
+        
+        // Create the new node
+        const newNode = {
+            id: numericId,
+            type: actionData.type || 'action',
+            position: flowPosition,
+            data: {
+                label: actionData.label || 'Action Node',
+                action_id: actionData.action_id,
+                configuration: {},
+                onDelete: () => deleteNode(numericId)
+            },
+            draggable: true
+        };
+        
+        // Add the new node to the canvas
+        setNodes(nds => {
+            // Prevent duplicates
+            if (nds.some(n => n.id === numericId)) {
+                console.warn(`Prevented duplicate node creation with ID: ${numericId}`);
+                return nds;
+            }
+            return nds.concat(newNode);
+        });
+        
+        // Fit view after adding the node
+        setTimeout(() => fitView({ padding: 0.2 }), 50);
+        
+        console.log('Added new node to canvas:', newNode);
+        return numericId;
+    }, [setNodes, deleteNode, fitView]);
+
+    // Poll for global variable to overcome mobile touch limitations
+    useEffect(() => {
+        // Set up poll for the global variable approach
+        const intervalId = setInterval(() => {
+            if (window.mobileWorkflowAction) {
+                const { action, timestamp } = window.mobileWorkflowAction;
+                
+                // Only process if it's recent (within last 2 seconds)
+                if (Date.now() - timestamp < 2000) {
+                    console.log('Found mobile action via global variable:', action);
+                    
+                    // Get center position of the canvas
+                    const flowPosition = { x: 300, y: 200 };
+                    
+                    // Add the node and clear the global variable
+                    addNodeToCanvas(action, flowPosition);
+                    window.mobileWorkflowAction = null;
+                }
+            }
+        }, 300); // Check frequently
+        
+        // Clean up
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [addNodeToCanvas]);
 
     // Handle connecting nodes
     const onConnect = useCallback(
@@ -150,17 +232,38 @@ const WorkflowCanvas = forwardRef((props, ref) => {
         }
     }))
 
+    // Calculate height based on device and fullscreen mode
+    const canvasHeight = isMobile 
+        ? isFullscreen 
+            ? 'h-screen fixed inset-0 z-50' 
+            : 'h-[calc(100vh-120px)]'
+        : 'h-[calc(100vh-200px)]'
+
     return (
         <motion.div
-            className={`w-full h-[calc(100vh-200px)] bg-white rounded-xl border p-2 transition-all duration-300 ${
+            className={`w-full ${canvasHeight} bg-white rounded-xl border p-2 transition-all duration-300 ${
                 isDraggingOver
                     ? 'border-blue-500 shadow-lg bg-blue-50'
                     : 'border-gray-300'
-            }`}
+            } ${isFullscreen ? 'rounded-none' : ''}`}
             onDrop={onDrop}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
         >
+            {/* Fullscreen toggle button */}
+            {isMobile && (
+                <button 
+                    className="absolute top-2 right-2 z-20 bg-white p-2 rounded-full shadow-md border border-gray-200"
+                    onClick={toggleFullscreen}
+                >
+                    {isFullscreen ? (
+                        <Minimize2 size={18} className="text-gray-600" />
+                    ) : (
+                        <Maximize2 size={18} className="text-gray-600" />
+                    )}
+                </button>
+            )}
+            
             <ReactFlow
                 nodes={nodes}
                 edges={edges}

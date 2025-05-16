@@ -11,8 +11,18 @@ import Modal from '../components/modal'
 import Pagination from '../components/pagination/pagination'
 import { IconButton, SearchInput } from '../components/reusable'
 import WorkflowTable from '../components/table'
+import MobileWorkflowTable from '../components/table/MobileWorkflowTable'
+import useIsMobile from '../hooks/useIsMobile'
 
 export default function Workflows () {
+    // Use the mobile detection hook
+    const isMobile = useIsMobile();
+    
+    // Console log to verify if mobile detection is working
+    useEffect(() => {
+        console.log('Is mobile device:', isMobile);
+    }, [isMobile]);
+
     // State management
     const [state, setState] = useState({
         search: '',
@@ -21,7 +31,6 @@ export default function Workflows () {
         isModalOpen: false,
         modalMode: 'create',
         selectedWorkflow: null,
-        isMobile: false,
         workflows: [],
         triggers: [],
         loading: true,
@@ -37,7 +46,6 @@ export default function Workflows () {
         isModalOpen,
         modalMode,
         selectedWorkflow,
-        isMobile,
         workflows,
         triggers,
         loading,
@@ -194,12 +202,6 @@ export default function Workflows () {
             if (result.success)
                 updateState({ triggers: result.data.triggers || [] })
         })
-
-        const handleResize = () =>
-            updateState({ isMobile: window.innerWidth <= 768 })
-        handleResize()
-        window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
     }, [])
 
     // Handle search and pagination
@@ -243,12 +245,12 @@ export default function Workflows () {
 
                     <div
                         className={`flex gap-2 items-center ${
-                            isMobile ? 'flex-col' : ''
+                            isMobile ? 'flex-col w-full' : ''
                         }`}
                     >
                         <div
                             className={`flex gap-2 ${
-                                isMobile ? 'flex-col' : ''
+                                isMobile ? 'flex-col w-full' : ''
                             }`}
                         >
                             <ReusableButton
@@ -256,6 +258,7 @@ export default function Workflows () {
                                     updateState({ activeTab: 'workflows' })
                                 }
                                 isActive={activeTab === 'workflows'}
+                                className={isMobile ? 'w-full' : ''}
                             >
                                 Workflows
                             </ReusableButton>
@@ -264,35 +267,77 @@ export default function Workflows () {
                                     updateState({ activeTab: 'executed' })
                                 }
                                 isActive={activeTab === 'executed'}
+                                className={isMobile ? 'w-full' : ''}
                             >
                                 Executed Workflows
                             </ReusableButton>
                         </div>
-                        <SearchInput
-                            value={search}
-                            onChange={e =>
-                                updateState({ search: e.target.value })
-                            }
-                            placeholder='Search'
-                        />
-                        <IconButton
-                            icon={Search}
-                            onClick={() => fetchWorkflows(1, search)}
-                        />
-                        <IconButton icon={Filter} />
+                        
+                                                                                          {isMobile ? (
+                                                <div className="w-full">
+                                                    <div className="flex items-center w-full space-x-2">
+                                                        <div className="relative flex-1">
+                                                            <SearchInput
+                                                                value={search}
+                                                                onChange={e => updateState({ search: e.target.value })}
+                                                                placeholder='Search'
+                                                                className="w-full"
+                                                            />
+                                                        </div>
+                                                        <div className="flex-shrink-0">
+                                                            <IconButton
+                                                                icon={Search}
+                                                                onClick={() => fetchWorkflows(1, search)}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-shrink-0">
+                                                            <IconButton
+                                                                icon={Filter}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ): (
+                            <div className="flex items-center">
+                                <SearchInput
+                                    value={search}
+                                    onChange={e => updateState({ search: e.target.value })}
+                                    placeholder='Search'
+                                    className="w-auto mr-2"
+                                />
+                                <IconButton
+                                    icon={Search}
+                                    onClick={() => fetchWorkflows(1, search)}
+                                    className="mr-1"
+                                />
+                                <IconButton icon={Filter} />
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 <div className='overflow-visible relative z-[50] horizontal-scroll-hidden'>
-                    <WorkflowTable
-                        workflows={workflows}
-                        onNavigate={workflow =>
-                            router.visit(
-                                `/create-new-workflow?id=${workflow.id}`
-                            )
-                        }
-                        onActionClick={handlers.workflowAction}
-                    />
+                    {isMobile ? (
+                        <MobileWorkflowTable
+                            workflows={workflows}
+                            onNavigate={workflow =>
+                                router.visit(
+                                    `/create-new-workflow?id=${workflow.id}`
+                                )
+                            }
+                            onActionClick={handlers.workflowAction}
+                        />
+                    ) : (
+                        <WorkflowTable
+                            workflows={workflows}
+                            onNavigate={workflow =>
+                                router.visit(
+                                    `/create-new-workflow?id=${workflow.id}`
+                                )
+                            }
+                            onActionClick={handlers.workflowAction}
+                        />
+                    )}
                 </div>
 
                 <Pagination
