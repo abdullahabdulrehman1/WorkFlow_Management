@@ -125,7 +125,7 @@ function MobileWorkflowControls({
                     <span className="font-medium truncate">{workflow.name}</span>
                     {workflow.trigger && (
                         <span className="ml-1 text-blue-700 flex items-center whitespace-nowrap">
-                            | <span className="mx-1 truncate">{workflow.trigger.name}</span>
+                             <span className="mx-1 truncate">{workflow.trigger.name}</span>
                             <SaveIndicator saved={justSaved} />
                         </span>
                     )}
