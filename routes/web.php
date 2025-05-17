@@ -21,6 +21,21 @@ Route::get('/create-new-workflow', function () {
     return Inertia::render('CreateNewWorkflow');
 });
 
+// Call screen route
+Route::get('/call/{callId}', function (Request $request, $callId) {
+    return Inertia::render('Call', [
+        'callId' => $callId,
+        'callType' => $request->query('type', 'audio'),
+        'recipientId' => $request->query('recipient'),
+        'callerName' => $request->query('caller')
+    ]);
+});
+
+// Call test route
+Route::get('/call-test', function () {
+    return Inertia::render('CallTest');
+})->name('call.test');
+
 // Push Notification Routes - Using web middleware with CSRF protection
 Route::middleware(['web'])->group(function () {
     Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
@@ -57,6 +72,18 @@ Route::middleware(['api'])->group(function () {
         Route::get('/', [ActionController::class, 'index']);
         Route::get('/{action}', [ActionController::class, 'show']);
     });
+
+    // Call API routes
+    Route::prefix('api/calls')->group(function () {
+        Route::post('/initiate', [App\Http\Controllers\CallController::class, 'initiate']);
+        Route::post('/accept', [App\Http\Controllers\CallController::class, 'accept']);
+        Route::post('/reject', [App\Http\Controllers\CallController::class, 'reject']);
+        Route::post('/end', [App\Http\Controllers\CallController::class, 'end']);
+        Route::get('/{callId}/status', [App\Http\Controllers\CallController::class, 'status']);
+    });
+
+    // FCM routes for token registration
+    Route::post('/api/fcm/register', [App\Http\Controllers\FCMController::class, 'register']);
 });
 
 // User route with auth middleware

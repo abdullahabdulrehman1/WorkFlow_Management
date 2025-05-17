@@ -4,6 +4,7 @@ import { Switch } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import SaveIndicator from './SaveIndicator';
 import useIsMobile from '../hooks/useIsMobile';
+import { PhoneCall } from 'lucide-react';
 
 export default function WorkflowControls({ 
     workflow, 
@@ -50,6 +51,10 @@ function DesktopWorkflowControls({
     onSave, 
     onClearCanvas 
 }) {
+    const handleCallTest = () => {
+        router.visit('/call-test');
+    };
+    
     return (
         <div className='flex justify-between items-center mb-4'>
             <div className='flex gap-4 items-center'>
@@ -92,6 +97,13 @@ function DesktopWorkflowControls({
             </div>
             <div className='flex gap-2'>
                 <button 
+                    className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-100'
+                    onClick={handleCallTest}
+                >
+                    <PhoneCall className="w-4 h-4" />
+                    <span>Test Call</span>
+                </button>
+                <button 
                     className='border px-4 py-1 rounded-full text-sm font-medium'
                     onClick={() => router.visit('/workflows')}
                 >
@@ -117,6 +129,10 @@ function MobileWorkflowControls({
     onSave, 
     onClearCanvas 
 }) {
+    const handleCallTest = () => {
+        router.visit('/call-test');
+    };
+    
     return (
         <div className='mb-4'>
             {/* Top section with workflow name and save indicator */}
@@ -132,7 +148,7 @@ function MobileWorkflowControls({
                 </div>
             )}
             
-            {/* Middle section with draft switch */}
+            {/* Middle section with draft switch and action buttons */}
             <div className='flex items-center justify-between mb-4'>
                 <div className='flex items-center gap-2'>
                     <Switch
@@ -154,12 +170,21 @@ function MobileWorkflowControls({
                         {isDraftOpen ? 'Published' : 'Draft'}
                     </span>
                 </div>
-                <button 
-                    className='text-red-500 border border-red-300 px-2 py-1 rounded-full text-xs font-medium hover:bg-red-50 active:bg-red-100'
-                    onClick={onClearCanvas}
-                >
-                    Clear
-                </button>
+                <div className='flex items-center gap-2'>
+                    <button 
+                        className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-2 py-1 rounded-full text-xs font-medium'
+                        onClick={handleCallTest}
+                    >
+                        <PhoneCall className="w-3 h-3" />
+                        <span>Test Call</span>
+                    </button>
+                    <button 
+                        className='text-red-500 border border-red-300 px-2 py-1 rounded-full text-xs font-medium hover:bg-red-50 active:bg-red-100'
+                        onClick={onClearCanvas}
+                    >
+                        Clear
+                    </button>
+                </div>
             </div>
             
             {/* Bottom section with save and cancel buttons */}

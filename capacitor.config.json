@@ -1,5 +1,5 @@
 {
-  "appId": "com.example.app",
+  "appId": "com.workflow.app",
   "appName": "workflow",
   "webDir": "public/build",
   "server": {
@@ -14,7 +14,34 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_workflow",
       "iconColor": "#4A90E2",
-      "sound": "notification_sound"
+      "sound": "notification_sound",
+      "actionTypes": [
+        {
+          "id": "CALL_ACTIONS",
+          "actions": [
+            {
+              "id": "accept",
+              "title": "Accept",
+              "foreground": true
+            },
+            {
+              "id": "decline",
+              "title": "Decline",
+              "destructive": true,
+              "foreground": false
+            }
+          ]
+        }
+      ]
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "FCM": {
+      "displayInForeground": true
+    },
+    "CallPlugin": {
+      "enabled": true
     }
   }
 }

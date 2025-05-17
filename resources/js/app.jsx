@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import React from 'react';
 import { registerSW } from 'virtual:pwa-register';
 import PushManager from './components/notifications/PushManager';
+import { CallManager, CallProvider } from './components/call/CallManager';
 
 // Standard service worker registration for push notifications
 if ('serviceWorker' in navigator) {
@@ -38,9 +39,10 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         createRoot(el).render(
-            <>
+            <CallProvider>
                 <App {...props} />
-                <PushManager /> {/* Add PushManager component */}
+                <PushManager /> {/* Push notification manager */}
+                <CallManager /> {/* Call notification manager */}
                 <Toaster 
                     position="top-center" 
                     gutter={12}
@@ -52,7 +54,7 @@ createInertiaApp({
                         className: '!bg-opacity-90 backdrop-blur-sm',
                     }}
                 />
-            </>
+            </CallProvider>
         );
     },
 });
