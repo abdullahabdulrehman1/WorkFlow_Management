@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -97,36 +99,56 @@ public class CallService extends Service {
     }
 
     private void showIncomingCallNotification(String callerId, String callerName, String callType, String callId) {
-        // Create an intent that opens your call screen activity
-        Intent fullScreenIntent = new Intent(this, MainActivity.class);
-        fullScreenIntent.putExtra("openCall", true);
+        // Create an intent for the native CallDecisionActivity
+        Intent fullScreenIntent = new Intent(this, CallDecisionActivity.class);
+        
+        // Add all required parameters for Call Decision Screen
         fullScreenIntent.putExtra("callerId", callerId);
         fullScreenIntent.putExtra("callerName", callerName);
         fullScreenIntent.putExtra("callType", callType);
         fullScreenIntent.putExtra("callId", callId);
-        fullScreenIntent.putExtra("showCallScreen", true);
         
-        // Instead of using CATEGORY_CALL which doesn't exist, set high priority flags
+        // Set high priority flags for the full-screen intent
         fullScreenIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                                 Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        
-        // Use maximum priority flags for the full-screen intent
-        fullScreenIntent.setFlags(
-            Intent.FLAG_ACTIVITY_NEW_TASK | 
-            Intent.FLAG_ACTIVITY_CLEAR_TOP | 
-            Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                               Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                               Intent.FLAG_ACTIVITY_SINGLE_TOP);
         
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
                 this, 0, fullScreenIntent, 
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         
-        // Create accept call intent
+        // Create accept call intent - which should go directly to the active call screen
         Intent acceptIntent = new Intent(this, CallActionReceiver.class);
         acceptIntent.setAction("ACCEPT_CALL");
         acceptIntent.putExtra("callerId", callerId);
         acceptIntent.putExtra("callerName", callerName);
         acceptIntent.putExtra("callType", callType);
         acceptIntent.putExtra("callId", callId);
+        acceptIntent.putExtra("openCallScreen", true); // Flag to ensure call screen opens
+        
+        // Direct to the actual call screen with proper URL encoding
+        String customRoute;
+        try {
+            // Use URLEncoder for proper encoding of parameters
+            String encodedCallerName = java.net.URLEncoder.encode(callerName != null ? callerName : "Unknown", "UTF-8");
+            String encodedCallerId = java.net.URLEncoder.encode(callerId, "UTF-8");
+            String encodedCallType = java.net.URLEncoder.encode(callType, "UTF-8");
+            
+            // Build the route with correct parameter names matching frontend expectations
+            customRoute = "/call/" + callId + 
+                    "?type=" + encodedCallType + 
+                    "&caller=" + encodedCallerName +
+                    "&recipient=" + encodedCallerId;
+                    
+            Log.d(TAG, "Creating accept intent with properly encoded route: " + customRoute);
+        } catch (Exception e) {
+            Log.e(TAG, "Error encoding URL parameters", e);
+            // Fallback with basic route if encoding fails
+            customRoute = "/call/" + callId;
+        }
+        
+        acceptIntent.putExtra("directCallRoute", customRoute);
+        
         PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(
                 this, 1, acceptIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         
@@ -140,10 +162,27 @@ public class CallService extends Service {
         PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(
                 this, 2, rejectIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        // Use the app icon as the notification icon
+        int smallIconResId = getApplicationInfo().icon;
+        
+        // Get the resource ID of the mipmap icon (which is typically the app icon)
+        int largeIconResId = getResources().getIdentifier("ic_launcher", "mipmap", getPackageName());
+        
+        // Create large bitmap icon for the notification
+        Bitmap largeIcon = null;
+        if (largeIconResId != 0) {
+            try {
+                largeIcon = BitmapFactory.decodeResource(getResources(), largeIconResId);
+            } catch (Exception e) {
+                Log.e(TAG, "Error loading large icon", e);
+            }
+        }
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("Incoming " + callType + " Call")
+                .setSmallIcon(smallIconResId)
+                .setContentTitle((callType.equals("video") ? "📹 Video Call" : "📞 Audio Call"))
                 .setContentText("from " + (callerName != null ? callerName : callerId))
+                .setContentIntent(fullScreenPendingIntent) // Set the pending intent for the entire notification
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(fullScreenPendingIntent, true)
@@ -156,6 +195,11 @@ public class CallService extends Service {
                 .setTimeoutAfter(60000) // Timeout after 1 minute
                 .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000}) // Strong vibration pattern
                 .setSound(android.provider.Settings.System.DEFAULT_RINGTONE_URI); // Default ringtone
+        
+        // Add large icon if available
+        if (largeIcon != null) {
+            builder.setLargeIcon(largeIcon);
+        }
         
         startForeground(NOTIFICATION_ID, builder.build());
     }

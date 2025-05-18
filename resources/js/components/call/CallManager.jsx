@@ -124,6 +124,51 @@ export const CallProvider = ({ children }) => {
           console.error('Error requesting notification permissions:', error);
         }
       }
+      
+      // Add custom event listener for direct navigation from native code
+      const handleCapacitorReceiveCall = (event) => {
+        console.log('Received capacitor-receive-call event:', event.detail);
+        
+        if (event.detail && event.detail.route) {
+          console.log('Navigating to route from native event:', event.detail.route);
+          
+          // Use router to navigate to the specified route
+          router.visit(event.detail.route, { 
+            preserveState: true,
+            preserveScroll: true,
+            replace: false
+          });
+          
+          // If we have call data, update call state
+          if (event.detail.callId) {
+            setCallState(prev => ({
+              ...prev,
+              isIncomingCall: false,
+              isOngoingCall: true,
+              callerId: event.detail.callerId,
+              callerName: event.detail.callerName,
+              callType: event.detail.callType || 'audio',
+              callStartTime: new Date(),
+              callId: event.detail.callId,
+              callStatus: 'connected'
+            }));
+          }
+        }
+      };
+      
+      window.addEventListener('capacitor-receive-call', handleCapacitorReceiveCall);
+      
+      // Clean up listeners when component unmounts
+      return () => {
+        if (Capacitor.isNativePlatform()) {
+          PushNotifications.removeAllListeners();
+          LocalNotifications.removeAllListeners();
+          CallPlugin.removeAllListeners();
+        }
+        
+        // Remove custom event listener with the same reference
+        window.removeEventListener('capacitor-receive-call', handleCapacitorReceiveCall);
+      };
     };
 
     setupCallListeners();
@@ -135,6 +180,11 @@ export const CallProvider = ({ children }) => {
         LocalNotifications.removeAllListeners();
         CallPlugin.removeAllListeners();
       }
+      
+      // Remove custom event listener
+      window.removeEventListener('capacitor-receive-call', () => {
+        console.log('Removed capacitor-receive-call event listener');
+      });
     };
   }, []);
 

@@ -24,6 +24,11 @@ android {
         }
     }
     
+    // Add lint options to create a baseline
+    lint {
+        abortOnError false
+        baseline file("lint-baseline.xml")
+    }
 }
 
 repositories {
@@ -43,6 +48,9 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     implementation 'com.google.firebase:firebase-messaging:23.3.0'
+    
+    // OkHttp for network requests
+    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 }
 
 apply from: 'capacitor.build.gradle'

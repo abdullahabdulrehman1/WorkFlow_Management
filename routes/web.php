@@ -31,6 +31,16 @@ Route::get('/call/{callId}', function (Request $request, $callId) {
     ]);
 });
 
+// Call decision screen route (new)
+Route::get('/call-decision/{callId}', function (Request $request, $callId) {
+    return Inertia::render('CallDecision', [
+        'callId' => $callId,
+        'callType' => $request->query('type', 'audio'),
+        'recipientId' => $request->query('recipient'),
+        'callerName' => $request->query('caller')
+    ]);
+});
+
 // Call test route
 Route::get('/call-test', function () {
     return Inertia::render('CallTest');

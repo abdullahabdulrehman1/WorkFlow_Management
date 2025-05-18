@@ -29,6 +29,11 @@ const CallTest = () => {
   const [debugInfo, setDebugInfo] = useState('');
   const isMobile = useIsMobile();
   const [isCapacitorAvailable, setIsCapacitorAvailable] = useState(false);
+  
+  // Timer related states
+  const [delaySeconds, setDelaySeconds] = useState(5);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [currentCountdown, setCurrentCountdown] = useState(0);
 
   useEffect(() => {
     // Check if we're running on a native platform with Capacitor
@@ -70,7 +75,45 @@ const CallTest = () => {
     checkCapacitor();
   }, []);
 
-  const initiateCall = async () => {
+  // Timer countdown effect
+  useEffect(() => {
+    let interval;
+    
+    if (isTimerRunning && currentCountdown > 0) {
+      interval = setInterval(() => {
+        setCurrentCountdown(prevCount => {
+          const newCount = prevCount - 1;
+          
+          // When countdown reaches 0, initiate the call
+          if (newCount === 0) {
+            initiateCallNow();
+          }
+          
+          return newCount;
+        });
+      }, 1000);
+    } else if (currentCountdown === 0) {
+      setIsTimerRunning(false);
+    }
+    
+    return () => clearInterval(interval);
+  }, [isTimerRunning, currentCountdown]);
+
+  // Start the delayed call
+  const startDelayedCall = () => {
+    if (delaySeconds > 0) {
+      toast.success(`Starting call in ${delaySeconds} seconds. You can switch apps now!`);
+      setDebugInfo(prev => `${prev}\nStarting call timer for ${delaySeconds} seconds...`);
+      setCurrentCountdown(delaySeconds);
+      setIsTimerRunning(true);
+    } else {
+      // If delay is set to 0, start call immediately
+      initiateCallNow();
+    }
+  };
+
+  // Actual call initiation logic (without delay)
+  const initiateCallNow = async () => {
     try {
       setIsLoading(true);
       setDebugInfo(prev => `${prev}\nAttempting to start call...`);
@@ -115,6 +158,16 @@ const CallTest = () => {
     }
   };
 
+  // Cancel a running timer
+  const cancelTimer = () => {
+    if (isTimerRunning) {
+      setIsTimerRunning(false);
+      setCurrentCountdown(0);
+      toast.error("Call timer cancelled");
+      setDebugInfo(prev => `${prev}\nTimer cancelled`);
+    }
+  };
+
   return (
     <WorkflowLayout breadcrumbText="Call Testing">
       <div className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
@@ -128,6 +181,7 @@ const CallTest = () => {
               value={callerId}
               onChange={(e) => setCallerId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              disabled={isTimerRunning || isLoading}
             />
           </div>
           
@@ -138,6 +192,7 @@ const CallTest = () => {
               value={callerName}
               onChange={(e) => setCallerName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              disabled={isTimerRunning || isLoading}
             />
           </div>
           
@@ -147,25 +202,63 @@ const CallTest = () => {
               value={callType}
               onChange={(e) => setCallType(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              disabled={isTimerRunning || isLoading}
             >
               <option value="audio">Audio Call</option>
               <option value="video">Video Call</option>
             </select>
           </div>
           
+          {/* Delay Timer Control */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Delay (seconds)
+              <span className="ml-2 text-xs text-blue-600">
+                This gives you time to switch apps before the call notification appears
+              </span>
+            </label>
+            <div className="flex items-center">
+              <input
+                type="range"
+                min="0"
+                max="30"
+                step="1"
+                value={delaySeconds}
+                onChange={(e) => setDelaySeconds(parseInt(e.target.value))}
+                className="w-full mr-3"
+                disabled={isTimerRunning || isLoading}
+              />
+              <div className="w-12 text-center font-medium">{delaySeconds}s</div>
+            </div>
+          </div>
+          
+          {/* Timer display when active */}
+          {isTimerRunning && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-center">
+              <div className="text-2xl font-bold text-blue-700">{currentCountdown}</div>
+              <div className="text-sm text-blue-600">Seconds until call notification</div>
+              <button
+                onClick={cancelTimer}
+                className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          
           <div className="flex gap-4 pt-4">
             <button
-              onClick={initiateCall}
-              disabled={isLoading}
-              className={`flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-medium shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              onClick={startDelayedCall}
+              disabled={isTimerRunning || isLoading}
+              className={`flex-1 px-4 py-2 bg-blue-600 text-white rounded-md font-medium shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${(isTimerRunning || isLoading) ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              {isLoading ? 'Initiating...' : 'Start Test Call'}
+              {isLoading ? 'Initiating...' : `Start Call${delaySeconds > 0 ? ` (${delaySeconds}s delay)` : ''}`}
             </button>
             
             <button
               onClick={endCall}
-              disabled={isLoading}
-              className={`flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-medium shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              disabled={isTimerRunning || isLoading}
+              className={`flex-1 px-4 py-2 bg-red-600 text-white rounded-md font-medium shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${(isTimerRunning || isLoading) ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               End Call
             </button>

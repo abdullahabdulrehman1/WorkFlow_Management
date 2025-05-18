@@ -19,29 +19,14 @@ public class CallActionReceiver extends BroadcastReceiver {
         Log.d(TAG, "Received action: " + action + " for call from: " + callerName);
         
         if ("ACCEPT_CALL".equals(action)) {
-            // Open the app to handle the call with high priority flags
+            // Open the app to handle the call
             Intent launchIntent = new Intent(context, MainActivity.class);
-            // FLAG_ACTIVITY_NEW_TASK - Required for starting activity from a non-activity context
-            // FLAG_ACTIVITY_CLEAR_TOP - Clear any existing activities of the same task
-            // FLAG_ACTIVITY_REORDER_TO_FRONT - Bring MainActivity to front if it exists
-            // FLAG_ACTIVITY_NO_ANIMATION - Remove transition animation
-            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK 
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP 
-                | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-            
-            // Instead of using CATEGORY_CALL which doesn't exist, use high priority flag
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
-            
-            // Add call information
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             launchIntent.putExtra("callAction", "accept");
             launchIntent.putExtra("callerId", callerId);
             launchIntent.putExtra("callerName", callerName);
             launchIntent.putExtra("callType", callType);
             launchIntent.putExtra("callId", callId);
-            launchIntent.putExtra("showCallScreen", true);  // Special flag to show call UI immediately
-            
-            // Start activity with urgency
             context.startActivity(launchIntent);
             
             // Stop the call service
