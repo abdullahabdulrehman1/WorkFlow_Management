@@ -8,6 +8,14 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.util.Log;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
+import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -17,6 +25,12 @@ public class CallDecisionActivity extends AppCompatActivity {
     private String callerName;
     private String callType;
     private String callId;
+    
+    private View pulseRing1;
+    private View pulseRing2;
+    private View pulseRing3;
+    private AnimatorSet pulseAnimatorSet;
+    private Handler animationHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +46,14 @@ public class CallDecisionActivity extends AppCompatActivity {
         
         setContentView(R.layout.call_decision_layout);
         
+        // Initialize animation handler
+        animationHandler = new Handler(Looper.getMainLooper());
+        
+        // Get references to pulse rings
+        pulseRing1 = findViewById(R.id.pulse_ring_1);
+        pulseRing2 = findViewById(R.id.pulse_ring_2);
+        pulseRing3 = findViewById(R.id.pulse_ring_3);
+        
         // Get call information from intent
         Intent intent = getIntent();
         if (intent != null) {
@@ -45,12 +67,16 @@ public class CallDecisionActivity extends AppCompatActivity {
             // Update UI with call information
             updateCallUI();
             
+            // Start pulse animations
+            startPulseAnimations();
+            
             // Set up accept button
             ImageButton acceptButton = findViewById(R.id.accept_call_button);
             if (acceptButton != null) {
                 acceptButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        addButtonClickAnimation(v);
                         acceptCall();
                     }
                 });
@@ -62,6 +88,7 @@ public class CallDecisionActivity extends AppCompatActivity {
                 rejectButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        addButtonClickAnimation(v);
                         rejectCall();
                     }
                 });
@@ -71,6 +98,119 @@ public class CallDecisionActivity extends AppCompatActivity {
             Log.e(TAG, "No intent data received for call, closing activity");
             finish();
         }
+    }
+    
+    private void startPulseAnimations() {
+        if (pulseRing1 == null || pulseRing2 == null || pulseRing3 == null) {
+            return;
+        }
+        
+        pulseAnimatorSet = new AnimatorSet();
+        
+        // Initial setup - hide rings
+        pulseRing1.setScaleX(1.0f);
+        pulseRing1.setScaleY(1.0f);
+        pulseRing1.setAlpha(1.0f);
+        
+        pulseRing2.setScaleX(1.0f);
+        pulseRing2.setScaleY(1.0f);
+        pulseRing2.setAlpha(0.0f);
+        
+        pulseRing3.setScaleX(1.0f);
+        pulseRing3.setScaleY(1.0f);
+        pulseRing3.setAlpha(0.0f);
+        
+        // Ring 1 animation
+        ObjectAnimator scaleXRing1 = ObjectAnimator.ofFloat(pulseRing1, "scaleX", 1.0f, 1.6f);
+        ObjectAnimator scaleYRing1 = ObjectAnimator.ofFloat(pulseRing1, "scaleY", 1.0f, 1.6f);
+        ObjectAnimator alphaRing1 = ObjectAnimator.ofFloat(pulseRing1, "alpha", 1.0f, 0.0f);
+        
+        scaleXRing1.setRepeatCount(ValueAnimator.INFINITE);
+        scaleYRing1.setRepeatCount(ValueAnimator.INFINITE);
+        alphaRing1.setRepeatCount(ValueAnimator.INFINITE);
+        scaleXRing1.setDuration(3000);
+        scaleYRing1.setDuration(3000);
+        alphaRing1.setDuration(3000);
+        
+        // Ring 2 animation with delay
+        ObjectAnimator scaleXRing2 = ObjectAnimator.ofFloat(pulseRing2, "scaleX", 1.0f, 1.6f);
+        ObjectAnimator scaleYRing2 = ObjectAnimator.ofFloat(pulseRing2, "scaleY", 1.0f, 1.6f);
+        ObjectAnimator alphaRing2 = ObjectAnimator.ofFloat(pulseRing2, "alpha", 1.0f, 0.0f);
+        
+        scaleXRing2.setRepeatCount(ValueAnimator.INFINITE);
+        scaleYRing2.setRepeatCount(ValueAnimator.INFINITE);
+        alphaRing2.setRepeatCount(ValueAnimator.INFINITE);
+        scaleXRing2.setDuration(3000);
+        scaleYRing2.setDuration(3000);
+        alphaRing2.setDuration(3000);
+        scaleXRing2.setStartDelay(1000);
+        scaleYRing2.setStartDelay(1000);
+        alphaRing2.setStartDelay(1000);
+        
+        // Ring 3 animation with more delay
+        ObjectAnimator scaleXRing3 = ObjectAnimator.ofFloat(pulseRing3, "scaleX", 1.0f, 1.6f);
+        ObjectAnimator scaleYRing3 = ObjectAnimator.ofFloat(pulseRing3, "scaleY", 1.0f, 1.6f);
+        ObjectAnimator alphaRing3 = ObjectAnimator.ofFloat(pulseRing3, "alpha", 1.0f, 0.0f);
+        
+        scaleXRing3.setRepeatCount(ValueAnimator.INFINITE);
+        scaleYRing3.setRepeatCount(ValueAnimator.INFINITE);
+        alphaRing3.setRepeatCount(ValueAnimator.INFINITE);
+        scaleXRing3.setDuration(3000);
+        scaleYRing3.setDuration(3000);
+        alphaRing3.setDuration(3000);
+        scaleXRing3.setStartDelay(2000);
+        scaleYRing3.setStartDelay(2000);
+        alphaRing3.setStartDelay(2000);
+        
+        // Add all animations to set
+        pulseAnimatorSet.playTogether(
+            scaleXRing1, scaleYRing1, alphaRing1,
+            scaleXRing2, scaleYRing2, alphaRing2,
+            scaleXRing3, scaleYRing3, alphaRing3
+        );
+        
+        pulseAnimatorSet.setInterpolator(new LinearInterpolator());
+        
+        // Delayed start for a better visual effect
+        animationHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                // Show rings before starting animation
+                pulseRing1.setAlpha(1.0f);
+                animationHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        pulseRing2.setAlpha(1.0f);
+                    }
+                }, 1000);
+                
+                animationHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        pulseRing3.setAlpha(1.0f);
+                    }
+                }, 2000);
+                
+                // Start animation
+                pulseAnimatorSet.start();
+            }
+        }, 500);
+    }
+    
+    private void addButtonClickAnimation(View view) {
+        view.animate()
+            .scaleX(0.9f)
+            .scaleY(0.9f)
+            .setDuration(100)
+            .withEndAction(new Runnable() {
+                @Override
+                public void run() {
+                    view.animate()
+                        .scaleX(1.0f)
+                        .scaleY(1.0f)
+                        .setDuration(100);
+                }
+            });
     }
     
     private void updateCallUI() {
@@ -169,7 +309,36 @@ public class CallDecisionActivity extends AppCompatActivity {
     }
     
     @Override
+    protected void onPause() {
+        super.onPause();
+        // Stop animations to save resources
+        if (pulseAnimatorSet != null) {
+            pulseAnimatorSet.pause();
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Resume animations
+        if (pulseAnimatorSet != null && pulseAnimatorSet.isPaused()) {
+            pulseAnimatorSet.resume();
+        }
+    }
+    
+    @Override
     protected void onDestroy() {
+        // Clean up animations
+        if (pulseAnimatorSet != null) {
+            pulseAnimatorSet.cancel();
+            pulseAnimatorSet = null;
+        }
+        
+        if (animationHandler != null) {
+            animationHandler.removeCallbacksAndMessages(null);
+            animationHandler = null;
+        }
+        
         // Make sure to stop the call service if the activity is destroyed
         Intent serviceIntent = new Intent(this, CallService.class);
         serviceIntent.setAction("END_CALL");

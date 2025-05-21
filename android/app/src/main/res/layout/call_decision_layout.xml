@@ -1,18 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
-    <!-- Gradient background -->
+    <!-- Enhanced gradient background with radial effect -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/call_screen_gradient"
         android:orientation="vertical" />
 
-    <!-- Caller info and avatar container -->
+    <!-- App logo at the top -->
+    <ImageView
+        android:id="@+id/app_logo"
+        android:layout_width="120dp"
+        android:layout_height="50dp"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="40dp"
+        android:src="@drawable/app_logo"
+        android:scaleType="fitCenter"
+        android:contentDescription="App Logo"
+        android:alpha="0.9"/>
+
+    <!-- Caller info and avatar container with enhanced styling -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -21,13 +35,13 @@
         android:gravity="center"
         android:padding="32dp">
 
-        <!-- Animated avatar container -->
+        <!-- Improved animated avatar container with custom pulse effect -->
         <FrameLayout
-            android:layout_width="140dp"
-            android:layout_height="140dp"
+            android:layout_width="160dp"
+            android:layout_height="160dp"
             android:layout_marginBottom="32dp">
 
-            <!-- Pulsing ring 1 -->
+            <!-- Enhanced pulsing ring 1 -->
             <View
                 android:id="@+id/pulse_ring_1"
                 android:layout_width="match_parent"
@@ -35,7 +49,7 @@
                 android:background="@drawable/call_pulse_ring"
                 android:layout_gravity="center" />
 
-            <!-- Pulsing ring 2 -->
+            <!-- Enhanced pulsing ring 2 -->
             <View
                 android:id="@+id/pulse_ring_2"
                 android:layout_width="match_parent"
@@ -43,30 +57,46 @@
                 android:background="@drawable/call_pulse_ring"
                 android:layout_gravity="center" />
 
-            <!-- Avatar circle -->
-            <ImageView
-                android:id="@+id/caller_avatar"
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:background="@drawable/call_avatar_bg"
-                android:src="@android:drawable/ic_menu_myplaces"
-                android:padding="20dp"
-                app:tint="#FFFFFF"
+            <!-- Enhanced pulsing ring 3 for extra visual effect -->
+            <View
+                android:id="@+id/pulse_ring_3"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/call_pulse_ring"
+                android:layout_gravity="center" />
+
+            <!-- Enhanced avatar circle with border -->
+            <FrameLayout
+                android:layout_width="110dp"
+                android:layout_height="110dp"
                 android:layout_gravity="center"
-                android:contentDescription="Caller avatar" />
+                android:background="@drawable/avatar_border">
+                
+                <ImageView
+                    android:id="@+id/caller_avatar"
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/call_avatar_bg"
+                    android:contentDescription="Caller avatar"
+                    android:padding="4dp"
+                    android:src="@drawable/profile_image"
+                    android:scaleType="centerCrop"/>
+            </FrameLayout>
         </FrameLayout>
 
-        <!-- Call information -->
+        <!-- Enhanced call information with improved typography -->
         <TextView
             android:id="@+id/caller_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Incoming Call"
             android:textColor="#FFFFFF"
-            android:textSize="28sp"
+            android:textSize="30sp"
             android:fontFamily="sans-serif-medium"
             android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="8dp"
+            android:elevation="3dp" />
 
         <TextView
             android:id="@+id/call_type"
@@ -74,12 +104,13 @@
             android:layout_height="wrap_content"
             android:text="Voice Call"
             android:textColor="#E0E0E0"
-            android:textSize="18sp"
-            android:fontFamily="sans-serif"
-            android:layout_marginBottom="16dp" />
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-light"
+            android:layout_marginBottom="16dp"
+            android:elevation="2dp" />
     </LinearLayout>
 
-    <!-- Call action buttons -->
+    <!-- Enhanced call action buttons with improved styling -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -91,7 +122,7 @@
         android:paddingLeft="24dp"
         android:paddingRight="24dp">
 
-        <!-- Decline call button -->
+        <!-- Enhanced decline call button with ripple effect -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -100,37 +131,39 @@
             android:gravity="center">
 
             <FrameLayout
-                android:layout_width="70dp"
-                android:layout_height="70dp"
+                android:layout_width="75dp"
+                android:layout_height="75dp"
                 android:layout_marginBottom="12dp">
-                
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/call_button_decline_bg" />
-                    
+                    android:background="@drawable/call_button_decline_bg"
+                    android:elevation="4dp" />
+
                 <ImageButton
                     android:id="@+id/decline_call_button"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:src="@android:drawable/ic_menu_close_clear_cancel"
-                    android:background="@android:color/transparent"
-                    app:tint="#FFFFFF"
-                    android:padding="16dp"
+                    android:src="@drawable/decline_call_icon"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:padding="18dp"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Decline call" />
+                    android:contentDescription="Decline call"
+                    android:elevation="6dp" />
             </FrameLayout>
-            
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Decline"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:fontFamily="sans-serif-medium" />
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:elevation="2dp" />
         </LinearLayout>
 
-        <!-- Accept call button -->
+        <!-- Enhanced accept call button with ripple effect -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -139,34 +172,36 @@
             android:gravity="center">
 
             <FrameLayout
-                android:layout_width="70dp"
-                android:layout_height="70dp"
+                android:layout_width="75dp"
+                android:layout_height="75dp"
                 android:layout_marginBottom="12dp">
-                
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/call_button_accept_bg" />
-                    
+                    android:background="@drawable/call_button_accept_bg"
+                    android:elevation="4dp" />
+
                 <ImageButton
                     android:id="@+id/accept_call_button"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:src="@android:drawable/ic_menu_call"
-                    android:background="@android:color/transparent"
-                    app:tint="#FFFFFF"
-                    android:padding="16dp"
+                    android:src="@drawable/accept_call_icon"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:padding="18dp"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Accept call" />
+                    android:contentDescription="Accept call"
+                    android:elevation="6dp" />
             </FrameLayout>
-            
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Accept"
                 android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:fontFamily="sans-serif-medium" />
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:elevation="2dp" />
         </LinearLayout>
     </LinearLayout>
 </RelativeLayout>

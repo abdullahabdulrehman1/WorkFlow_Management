@@ -4,7 +4,7 @@ import { Switch } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import SaveIndicator from './SaveIndicator';
 import useIsMobile from '../hooks/useIsMobile';
-import { PhoneCall } from 'lucide-react';
+import { PhoneCall, X, Save, ArrowLeft } from 'lucide-react';
 
 export default function WorkflowControls({ 
     workflow, 
@@ -138,7 +138,7 @@ function MobileWorkflowControls({
             {/* Top section with workflow name and save indicator */}
             {workflow && (
                 <div className="mb-3 px-3 py-1 bg-blue-100 border border-blue-300 rounded-full flex items-center overflow-hidden">
-                    <span className="font-medium truncate">{workflow.name}</span>
+                    {/* <span className="font-medium truncate">{workflow.name}</span> */}
                     {workflow.trigger && (
                         <span className="ml-1 text-blue-700 flex items-center whitespace-nowrap">
                              <span className="mx-1 truncate">{workflow.trigger.name}</span>
@@ -149,7 +149,7 @@ function MobileWorkflowControls({
             )}
             
             {/* Middle section with draft switch and action buttons */}
-            <div className='flex items-center justify-between mb-4'>
+            <div className='flex items-center justify-between mb-2'>
                 <div className='flex items-center gap-2'>
                     <Switch
                         checked={isDraftOpen}
@@ -172,17 +172,20 @@ function MobileWorkflowControls({
                 </div>
                 <div className='flex items-center gap-2'>
                     <button 
-                        className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-2 py-1 rounded-full text-xs font-medium'
+                        className='flex items-center justify-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full text-xs font-medium active:bg-blue-100'
                         onClick={handleCallTest}
+                        aria-label="Test Call"
                     >
                         <PhoneCall className="w-3 h-3" />
-                        <span>Test Call</span>
+                        <span className="hidden xs:inline">Test</span>
                     </button>
                     <button 
-                        className='text-red-500 border border-red-300 px-2 py-1 rounded-full text-xs font-medium hover:bg-red-50 active:bg-red-100'
+                        className='flex items-center justify-center gap-1 text-red-500 border border-red-300 px-2.5 py-1 rounded-full text-xs font-medium active:bg-red-100'
                         onClick={onClearCanvas}
+                        aria-label="Clear Canvas"
                     >
-                        Clear
+                        <X className="w-3 h-3" />
+                        <span className="hidden xs:inline">Clear</span>
                     </button>
                 </div>
             </div>
@@ -190,16 +193,18 @@ function MobileWorkflowControls({
             {/* Bottom section with save and cancel buttons */}
             <div className='flex justify-between gap-2 mt-3'>
                 <button 
-                    className='flex-1 border border-gray-300 px-2 py-1.5 rounded-full text-xs font-medium active:bg-gray-100'
+                    className='flex-1 border border-gray-300 px-2 py-1.5 rounded-full text-xs font-medium active:bg-gray-100 flex items-center justify-center gap-1'
                     onClick={() => router.visit('/workflows')}
                 >
-                    Cancel
+                    <ArrowLeft className="w-3 h-3" />
+                    <span>Cancel</span>
                 </button>
                 <button 
-                    className='flex-1 bg-yellow-400 text-black px-2 py-1.5 rounded-full text-xs font-semibold shadow active:bg-yellow-500 active:shadow-inner'
+                    className='flex-1 bg-yellow-400 text-black px-2 py-1.5 rounded-full text-xs font-semibold shadow active:bg-yellow-500 active:shadow-inner flex items-center justify-center gap-1'
                     onClick={onSave}
                 >
-                    Save workflow
+                    <Save className="w-3 h-3" />
+                    <span>Save</span>
                 </button>
             </div>
         </div>
