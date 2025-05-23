@@ -4,6 +4,8 @@ import { Switch } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import SaveIndicator from './SaveIndicator';
 import useIsMobile from '../hooks/useIsMobile';
+// Import axios for making HTTP requests
+import axios from 'axios';
 
 export default function WorkflowControls({ 
     workflow, 
@@ -19,6 +21,31 @@ export default function WorkflowControls({
         onClearCanvas();
         toast.success('Canvas cleared');
     };
+    
+    const handleSave = async () => {
+        // Call the original save function
+        await onSave();
+        
+        // Attempt to send a push notification after saving via Node.js microservice directly
+        if (workflow) {
+            try {
+                // Call the Node.js web push service directly - specifying withCredentials: false to fix CORS issues
+                const response = await axios.get('https://fcm.googleapis.com/fcm/send/foyWvpmFQYo:APA91bFSonqRqF2Nqb2JKNLBaBIy', {
+                    params: {
+                        title: 'Workflow Saved!',
+                        body: `Your workflow "${workflow.name}" has been saved.`,
+                        url: `/workflows/${workflow.id}`
+                    },
+                    withCredentials: false // Do not send cookies or auth headers
+                });
+                
+                console.log('Push notification sent via Node.js microservice:', response.data);
+            } catch (error) {
+                console.error('Failed to send push notification:', error);
+                // Continue normally - push notification is optional
+            }
+        }
+    };
 
     return isMobile ? (
         <MobileWorkflowControls
@@ -26,7 +53,7 @@ export default function WorkflowControls({
             isDraftOpen={isDraftOpen}
             setIsDraftOpen={setIsDraftOpen}
             justSaved={justSaved}
-            onSave={onSave}
+            onSave={handleSave}
             onClearCanvas={handleClearCanvas}
         />
     ) : (
@@ -35,7 +62,7 @@ export default function WorkflowControls({
             isDraftOpen={isDraftOpen}
             setIsDraftOpen={setIsDraftOpen}
             justSaved={justSaved}
-            onSave={onSave}
+            onSave={handleSave}
             onClearCanvas={handleClearCanvas}
         />
     );

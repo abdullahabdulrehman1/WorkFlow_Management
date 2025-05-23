@@ -6,6 +6,9 @@
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
+        <!-- CSRF Token -->
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+
         <!-- PWA Meta Tags -->
         <link rel="manifest" href="{{ asset('build/manifest.webmanifest') }}">
         <meta name="theme-color" content="#0f172a">
@@ -33,7 +36,17 @@
         <meta property="og:image:type" content="image/jpeg">
         <meta property="og:image:width" content="300">
         <meta property="og:image:height" content="300">
-
+        <!-- WebPush Service Configuration -->
+<script>
+    window.WEBPUSH_SERVICE_URL = "{{ config('services.webpush_service.url') }}";
+    @if(config('services.webpush_service.api_token') && config('app.env') === 'production')
+        // In production, don't expose the actual token in frontend code
+        window.WEBPUSH_SERVICE_TOKEN = "frontend-token";
+    @elseif(config('services.webpush_service.api_token'))
+        // Only in development for testing purposes
+        window.WEBPUSH_SERVICE_TOKEN = "{{ config('services.webpush_service.api_token') }}";
+    @endif
+</script>
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 

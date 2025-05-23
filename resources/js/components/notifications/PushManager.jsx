@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import usePushNotifications from './usePushNotifications';
 
 // Function to convert base64 string to Uint8Array
 function urlBase64ToUint8Array(base64String) {
@@ -143,36 +144,32 @@ export async function sendNotification(title, body, url = null) {
     }
 }
 
-// React component that initializes push notifications
-const PushManager = () => {
-    useEffect(() => {
-        const initPushNotifications = async () => {
-            // Dont run in iframes
-            if (window.self !== window.top) return;
-            
-            try {
-                // Wait a moment for page to load fully
-                setTimeout(async () => {
-                    const result = await subscribeToPush();
-                    
-                    if (!result.success) {
-                        console.log('Push notifications not enabled:', result.reason);
-                        
-                        // Only show permission errors to user
-                        if (result.reason === 'permission-denied') {
-                            toast.error('Please enable notifications for workflow alerts');
-                        }
-                    }
-                }, 2000);
-            } catch (error) {
-                console.error('Error initializing push notifications:', error);
-            }
-        };
-        
-        initPushNotifications();
-    }, []);
-    
-    return null;
-};
+/**
+ * Component to handle push notification subscriptions
+ * This should be mounted in your app's root component
+ * @param {Object} props - Component props
+ * @param {Object|null} props.user - Current authenticated user or null
+ */
+export default function PushManager({ user }) {
+    const { isSubscribed, subscriptionError, isLoading } = usePushNotifications();
 
-export default PushManager;
+    useEffect(() => {
+        // Only show notification status to logged in users
+        if (!user) return;
+        
+        // Show error if subscription failed
+        if (subscriptionError && !isLoading) {
+            console.error('Push notification error:', subscriptionError);
+            // Optionally show a toast notification
+            // toast.error(`Push notifications error: ${subscriptionError}`);
+        }
+        
+        // Optionally show success message when subscribed
+        // if (isSubscribed && !isLoading) {
+        //   toast.success('Push notifications enabled');
+        // }
+    }, [isSubscribed, subscriptionError, isLoading, user]);
+
+    // This is a "headless" component - it doesn't render anything
+    return null;
+}

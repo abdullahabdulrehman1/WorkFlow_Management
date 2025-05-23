@@ -6,11 +6,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\PushSubscription; // Add this line
+use NotificationChannels\WebPush\HasPushSubscriptions; // Add this line
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasPushSubscriptions; // Add HasPushSubscriptions here
 
     /**
      * The attributes that are mass assignable.
@@ -45,4 +47,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // The HasPushSubscriptions trait will provide the pushSubscriptions() relationship
+    // If you had a custom pushSubscriptions() method, you might need to remove or adjust it
+    // if it conflicts with the one provided by the trait.
+    // For laravel-notification-channels/webpush, the trait defines this relationship.
 }

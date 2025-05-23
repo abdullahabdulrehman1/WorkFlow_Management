@@ -20,6 +20,7 @@ class PushSubscription extends Model
         'auth_token',
         'content_encoding',
         'user_id',
+        'expires_at', // Added to store subscription expiration
     ];
 
     /**
@@ -28,7 +29,7 @@ class PushSubscription extends Model
      * @var array
      */
     protected $casts = [
-        'expirationTime' => 'datetime',
+        'expires_at' => 'datetime', // Changed from expirationTime to expires_at
     ];
 
     /**

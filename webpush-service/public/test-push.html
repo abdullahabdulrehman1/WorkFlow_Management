@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Push Test Page</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        button { padding: 10px 15px; margin: 10px 0; cursor: pointer; }
+        #status { margin: 20px 0; padding: 15px; background-color: #f3f3f3; border-radius: 4px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        pre { background: #f0f0f0; padding: 10px; overflow: auto; }
+        .url-list { margin: 20px 0; }
+        .url-list a { display: block; margin: 10px 0; padding: 8px; background: #eef; text-decoration: none; border-radius: 4px; }
+        .url-list a:hover { background: #ddf; }
+        .browser-instructions { padding: 15px; border: 1px solid #ccc; margin: 15px 0; border-radius: 4px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Web Push Notification Tester</h1>
+    <div id="status">Status: Not subscribed</div>
+    
+    <!-- Brave-specific instructions (hidden by default) -->
+    <div id="brave-instructions" class="browser-instructions hidden">
+        <h3>⚠️ Brave Browser Detected</h3>
+        <p>You're using Brave Browser which has stricter privacy settings that can block push notifications.</p>
+        <ol>
+            <li>Click the Brave shield icon in the address bar (usually on right side)</li>
+            <li>Make sure "Block fingerprinting" is set to "Standard" or "Allow all"</li>
+            <li>In Brave Settings → Privacy and security → Site and Shields Settings → Notifications, make sure this site is not blocked</li>
+            <li>Try closing and reopening this page after changing settings</li>
+        </ol>
+    </div>
+
+    <!-- Permission instructions (hidden by default) -->
+    <div id="permission-instructions" class="browser-instructions hidden">
+        <h3>⚠️ Notification Permission Required</h3>
+        <p>This site needs notification permission to demonstrate push notifications.</p>
+        <button id="request-permission">Request Notification Permission</button>
+    </div>
+    
+    <button id="subscribe">Subscribe to Push Notifications</button>
+    <button id="unsubscribe" disabled>Unsubscribe</button>
+    
+    <h2>Test URLs</h2>
+    <p>After subscribing, you can use these links to trigger notifications:</p>
+    <div class="url-list">
+        <a href="/trigger?title=Hello&body=This is a test notification" target="_blank">Send basic notification</a>
+        <a href="/trigger?title=Custom Title&body=This is a custom message with different text" target="_blank">Send custom notification</a>
+        <a href="/trigger?title=Workflow Alert&body=A new workflow has been created" target="_blank">Workflow notification</a>
+    </div>
+    
+    <h2>Create your own test URL:</h2>
+    <p>Format: <code>/trigger?title=Your Title&body=Your message here</code></p>
+    
+    <h3>Current subscription:</h3>
+    <pre id="subscription-json">Not subscribed yet</pre>
+    
+    <script>
+        const subscribeButton = document.getElementById('subscribe');
+        const unsubscribeButton = document.getElementById('unsubscribe');
+        const statusDiv = document.getElementById('status');
+        const subscriptionJson = document.getElementById('subscription-json');
+        const braveInstructions = document.getElementById('brave-instructions');
+        const permissionInstructions = document.getElementById('permission-instructions');
+        const requestPermissionButton = document.getElementById('request-permission');
+        
+        let swRegistration = null;
+        
+        // Detect Brave browser
+        function isBraveBrowser() {
+            return navigator.brave && navigator.brave.isBrave || 
+                   (navigator.userAgent.indexOf("Brave") > -1);
+        }
+        
+        // Show Brave-specific instructions if needed
+        if (isBraveBrowser()) {
+            braveInstructions.classList.remove('hidden');
+        }
+        
+        // Check notification permission and show appropriate UI
+        function checkNotificationPermission() {
+            return new Promise((resolve, reject) => {
+                if (!('Notification' in window)) {
+                    reject("This browser does not support notifications");
+                    return;
+                }
+                
+                if (Notification.permission === 'granted') {
+                    resolve(true);
+                } else if (Notification.permission === 'denied') {
+                    reject("Notification permission is denied. Please enable notifications in your browser settings.");
+                } else {
+                    permissionInstructions.classList.remove('hidden');
+                    resolve(false);
+                }
+            });
+        }
+        
+        // Request notification permission
+        requestPermissionButton.addEventListener('click', function() {
+            Notification.requestPermission().then(function(permission) {
+                if (permission === 'granted') {
+                    statusDiv.textContent = 'Notification permission granted';
+                    statusDiv.className = 'success';
+                    permissionInstructions.classList.add('hidden');
+                    initializeServiceWorker();
+                } else {
+                    statusDiv.textContent = 'Notification permission denied';
+                    statusDiv.className = 'error';
+                }
+            });
+        });
+        
+        // Initialize service worker if supported
+        function initializeServiceWorker() {
+            // Check if service workers are supported
+            if ('serviceWorker' in navigator && 'PushManager' in window) {
+                // Register service worker
+                navigator.serviceWorker.register('/sw-test.js')
+                .then(function(registration) {
+                    swRegistration = registration;
+                    console.log('Service Worker registered successfully');
+                    
+                    // Check subscription status
+                    return swRegistration.pushManager.getSubscription();
+                })
+                .then(function(subscription) {
+                    updateSubscriptionStatus(subscription);
+                })
+                .catch(function(error) {
+                    statusDiv.textContent = 'Error registering Service Worker: ' + error;
+                    statusDiv.className = 'error';
+                });
+            } else {
+                statusDiv.textContent = 'Error: Push notifications not supported in this browser';
+                statusDiv.className = 'error';
+                subscribeButton.disabled = true;
+            }
+        }
+        
+        // Start by checking permission
+        checkNotificationPermission().then((permissionGranted) => {
+            if (permissionGranted) {
+                initializeServiceWorker();
+            }
+        }).catch(error => {
+            statusDiv.textContent = error;
+            statusDiv.className = 'error';
+            subscribeButton.disabled = true;
+        });
+        
+        // Subscribe to push with improved error handling
+        subscribeButton.addEventListener('click', function() {
+            statusDiv.textContent = 'Subscribing...';
+            
+            // Get the VAPID public key
+            fetch('/vapid-public-key')
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error(`Failed to get VAPID key: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (!data.vapidPublicKey) {
+                    throw new Error('VAPID public key not found in server response');
+                }
+                
+                console.log('Received VAPID public key');
+                const applicationServerKey = urlB64ToUint8Array(data.vapidPublicKey);
+                
+                return swRegistration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: applicationServerKey
+                });
+            })
+            .then(function(subscription) {
+                console.log('Push subscription created:', subscription);
+                
+                // Send subscription to server
+                return fetch('/save-subscription', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(subscription)
+                });
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error(`Failed to save subscription: ${response.status} ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    swRegistration.pushManager.getSubscription().then(function(subscription) {
+                        updateSubscriptionStatus(subscription);
+                        statusDiv.textContent = 'Successfully subscribed to push notifications!';
+                        statusDiv.className = 'success';
+                    });
+                } else {
+                    throw new Error(data.error || 'Unknown error saving subscription');
+                }
+            })
+            .catch(function(error) {
+                console.error('Subscription error:', error);
+                statusDiv.textContent = 'Error subscribing: ' + error.message;
+                statusDiv.className = 'error';
+                
+                // Special instructions for Brave users
+                if (isBraveBrowser()) {
+                    statusDiv.textContent += '. Please check Brave shield settings (see instructions above).';
+                }
+            });
+        });
+        
+        // Unsubscribe from push
+        unsubscribeButton.addEventListener('click', function() {
+            swRegistration.pushManager.getSubscription()
+            .then(function(subscription) {
+                if (subscription) {
+                    // Send unsubscribe request to server
+                    fetch('/remove-subscription', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(subscription)
+                    })
+                    .then(() => subscription.unsubscribe())
+                    .then(function() {
+                        updateSubscriptionStatus(null);
+                        statusDiv.textContent = 'Successfully unsubscribed';
+                        statusDiv.className = 'success';
+                    });
+                }
+            })
+            .catch(function(error) {
+                statusDiv.textContent = 'Error unsubscribing: ' + error;
+                statusDiv.className = 'error';
+            });
+        });
+        
+        // Update UI based on subscription status
+        function updateSubscriptionStatus(subscription) {
+            if (subscription) {
+                subscribeButton.disabled = true;
+                unsubscribeButton.disabled = false;
+                
+                subscriptionJson.textContent = JSON.stringify(subscription, null, 2);
+                statusDiv.textContent = 'Status: Subscribed';
+                statusDiv.className = 'success';
+            } else {
+                subscribeButton.disabled = false;
+                unsubscribeButton.disabled = true;
+                
+                subscriptionJson.textContent = 'Not subscribed';
+                statusDiv.textContent = 'Status: Not subscribed';
+                statusDiv.className = '';
+            }
+        }
+        
+        // Convert base64 to Uint8Array for applicationServerKey
+        function urlB64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+                
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+    </script>
+</body>
+</html>

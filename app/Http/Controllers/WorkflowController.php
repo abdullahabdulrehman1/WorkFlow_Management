@@ -10,6 +10,8 @@ use App\Models\WorkflowConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use App\Notifications\WorkflowSavedNotification; // Add this line
+use Illuminate\Support\Facades\Auth; // Add this line if not already present
 
 class WorkflowController extends Controller
 {
@@ -237,11 +239,20 @@ class WorkflowController extends Controller
 
             DB::commit();
 
+            // Send notification to the authenticated user
+            $user = Auth::user();
+            if ($user) {
+                $title = 'Workflow Saved!';
+                $body = "Your workflow '{$workflow->name}' has been successfully saved.";
+                // Adjust the action URL as needed, e.g., to view the workflow
+                $actionUrl = url("/workflows/{$workflow->id}"); 
+                $user->notify(new WorkflowSavedNotification($title, $body, $actionUrl));
+            }
+
             return response()->json([
                 'message' => 'Workflow canvas saved successfully',
                 'workflow' => $workflow->fresh(['actions.action', 'connections']),
-                // Include the ID mapping for the frontend to use
-                'id_mapping' => $idMapping
+                'id_mapping' => $idMapping // Ensure $idMapping is defined if you use it here
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

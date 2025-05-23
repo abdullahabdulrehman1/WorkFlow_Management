@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'webpush_service' => [
+        'url' => env('WEBPUSH_SERVICE_URL', 'http://localhost:3001'),
+    ],
+
 ];

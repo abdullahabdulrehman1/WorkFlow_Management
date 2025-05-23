@@ -3,16 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\PushSubscription;
+use App\Models\User;
+use App\Services\WebPushService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Minishlink\WebPush\WebPush;
-use Minishlink\WebPush\Subscription;
-use Exception;
-use Minishlink\WebPush\Encryption;
 
 class PushNotificationController extends Controller
 {
+    protected $webPushService;
+
+    public function __construct(WebPushService $webPushService)
+    {
+        $this->webPushService = $webPushService;
+    }
+
     /**
      * Store a new push notification subscription.
      *
@@ -35,19 +41,26 @@ class PushNotificationController extends Controller
         }
 
         try {
-            // Delete existing subscriptions with the same endpoint to avoid duplicates
+            // Delete existing subscriptions with the same endpoint
             PushSubscription::where('endpoint', $request->endpoint)->delete();
             
             // Create a new subscription
-            PushSubscription::create([
+            $subscription = new PushSubscription([
                 'endpoint' => $request->endpoint,
                 'public_key' => $request->public_key,
                 'auth_token' => $request->auth_token,
                 'content_encoding' => $request->content_encoding ?? 'aes128gcm'
             ]);
+            
+            // Associate with user if authenticated
+            if (Auth::check()) {
+                $subscription->user_id = Auth::id();
+            }
+            
+            $subscription->save();
 
             return response()->json(['success' => true]);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Log::error('Error storing push subscription: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
@@ -59,16 +72,67 @@ class PushNotificationController extends Controller
             ], 500);
         }
     }
-
+    
     /**
-     * Send a test push notification to all subscribed devices.
+     * Send a push notification to all subscriptions or specific user.
+     * REPLACED to avoid any Minishlink references
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function sendTestPush(Request $request)
+    public function send(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'body' => 'required|string',
+            'user_id' => 'nullable|integer|exists:users,id',
+            'url' => 'nullable|string',
+            'icon' => 'nullable|string',
+            'badge' => 'nullable|string',
+            'tag' => 'nullable|string',
+            'data' => 'nullable|array'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
         try {
+            // Build payload for the notification
+            $payload = [
+                'title' => $request->title,
+                'body' => $request->body,
+                'icon' => $request->input('icon', '/logo.png'),
+                'badge' => $request->input('badge', '/logo.png'),
+                'url' => $request->input('url', '/'),
+                'tag' => $request->input('tag', 'default'),
+                'data' => $request->input('data', []),
+            ];
+            
+            // Send to specific user if user_id provided
+            if ($request->has('user_id')) {
+                $user = User::find($request->user_id);
+                if (!$user) {
+                    return response()->json([
+                        'sent' => false,
+                        'message' => 'User not found'
+                    ], 404);
+                }
+                
+                // Send notification using WebPushService
+                $result = $this->webPushService->notifyUser($user, $payload);
+                
+                return response()->json([
+                    'sent' => $result['success'] ?? false,
+                    'message' => 'Notification sent to user',
+                    'results' => $result
+                ]);
+            }
+            
+            // No specific user, send to all subscriptions
             $subscriptions = PushSubscription::all();
             
             if ($subscriptions->isEmpty()) {
@@ -78,118 +142,112 @@ class PushNotificationController extends Controller
                 ], 404);
             }
             
-            // Configure PHP OpenSSL for Windows
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                // Set proper OpenSSL config for Windows
-                putenv('OPENSSL_CONF=');
-                
-                // Increase memory limit temporarily for encryption operations
-                ini_set('memory_limit', '256M');
-            }
+            // Format subscriptions for the WebPushService
+            $formattedSubscriptions = $subscriptions->map(function($sub) {
+                return [
+                    'endpoint' => $sub->endpoint,
+                    'keys' => [
+                        'p256dh' => $sub->public_key,
+                        'auth' => $sub->auth_token,
+                    ],
+                ];
+            })->toArray();
             
-            // Get VAPID configuration from .env
-            $vapidSubject = config('webpush.vapid.subject');
-            $vapidPublicKey = config('webpush.vapid.public_key');
-            $vapidPrivateKey = config('webpush.vapid.private_key');
+            // Send notification using WebPushService
+            $result = $this->webPushService->sendBulkNotifications($formattedSubscriptions, $payload);
             
-            if (!$vapidPublicKey || !$vapidPrivateKey) {
-                throw new Exception('VAPID keys are not properly configured');
-            }
-            
-            // Create WebPush instance with minimal configuration
-            $auth = [
-                'VAPID' => [
-                    'subject' => $vapidSubject,
-                    'publicKey' => $vapidPublicKey,
-                    'privateKey' => $vapidPrivateKey,
-                ],
-                'contentEncoding' => 'aes128gcm'
-            ];
-            
-            $webPush = new WebPush($auth);
-            $sentCount = 0;
-            $failedCount = 0;
-            
-            // Create payload with minimal data
-            $payload = json_encode([
-                'title' => $request->input('title', 'Workflow Management'),
-                'body' => $request->input('body', 'You have a new notification'),
-                'icon' => '/logo.png'
-            ]);
-            
-            // Process each subscription with individual error handling
-            foreach ($subscriptions as $sub) {
-                try {
-                    // Create subscription object with proper format
-                    $subscription = Subscription::create([
-                        'endpoint' => $sub->endpoint,
-                        'keys' => [
-                            'p256dh' => $sub->public_key,
-                            'auth' => $sub->auth_token,
-                        ],
-                        'contentEncoding' => 'aes128gcm'
-                    ]);
-                    
-                    // Queue notification
-                    $webPush->queueNotification($subscription, $payload);
-                } catch (Exception $e) {
-                    Log::error('Error queueing notification: ' . $e->getMessage());
-                    $failedCount++;
-                }
-            }
-            
-            // Send all notifications
-            $results = [];
-            foreach ($webPush->flush() as $report) {
-                $endpoint = $report->getRequest()->getUri()->__toString();
-                
-                if ($report->isSuccess()) {
-                    $sentCount++;
-                    $results[] = [
-                        'endpoint' => $endpoint,
-                        'status' => 'success'
-                    ];
-                } else {
-                    $failedCount++;
-                    $results[] = [
-                        'endpoint' => $endpoint,
-                        'status' => 'failed',
-                        'reason' => $report->getReason()
-                    ];
-                    
-                    if ($report->getStatusCode() === 410) {
-                        PushSubscription::where('endpoint', $endpoint)->delete();
-                    }
-                }
-            }
-            
-            // Return success if any notifications were sent
             return response()->json([
-                'sent' => $sentCount > 0,
-                'stats' => [
-                    'sent' => $sentCount,
-                    'failed' => $failedCount
-                ],
-                'fallbackEnabled' => $sentCount === 0
+                'sent' => $result['success'] ?? false,
+                'message' => 'Notification sent to all subscriptions',
+                'count' => $subscriptions->count(),
+                'results' => $result
             ]);
-            
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Log::error('Push notification error: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // For debugging purposes, you can include more details
             return response()->json([
                 'sent' => false,
-                'fallbackEnabled' => true,
                 'error' => 'Push notification failed: ' . $e->getMessage(),
-                'errorDetails' => [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]
-            ]);
+                'fallbackEnabled' => true
+            ], 500);
         }
+    }
+    
+    /**
+     * Send a test push notification.
+     * COMPLETELY REWRITTEN to avoid Minishlink references.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendTestPush(Request $request)
+    {
+        try {
+            Log::debug('Starting test push notification with direct WebPushService');
+            
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized - user not authenticated'], 401);
+            }
+            
+            $payload = [
+                'title' => 'Test Notification',
+                'body' => 'This is a test notification from Workflow Management',
+                'icon' => '/logo.png',
+                'url' => $request->input('url', '/notification-test')
+            ];
+            
+            // Directly use our WebPushService
+            $result = $this->webPushService->notifyUser($user, $payload);
+            
+            return response()->json([
+                'sent' => $result['success'] ?? false,
+                'message' => 'Test notification sent through WebPushService',
+                'results' => $result
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Test push notification failed: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'sent' => false,
+                'error' => 'Test push notification failed: ' . $e->getMessage(),
+                'fallbackEnabled' => true
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get all subscriptions for the authenticated user or all if no user.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserSubscriptions(Request $request)
+    {
+        // Get subscriptions for authenticated user if available
+        if (Auth::check()) {
+            $subscriptions = PushSubscription::where('user_id', Auth::id())->get();
+        } else {
+            // Otherwise, try to get subscriptions by endpoint if provided
+            if ($request->has('endpoint')) {
+                $subscriptions = PushSubscription::where('endpoint', $request->endpoint)->get();
+            } else {
+                // Return all subscriptions if no filter
+                $subscriptions = PushSubscription::all();
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'subscriptions' => $subscriptions
+        ]);
     }
 }

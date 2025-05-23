@@ -19,107 +19,57 @@ self.addEventListener('activate', event => {
 });
 
 // Push event - handle incoming push notifications
-self.addEventListener('push', event => {
-  console.log('[Service Worker] Push notification received', event);
-
-  let notification = {};
-  
-  try {
-    if (event.data) {
-      console.log('[Service Worker] Push event data available');
-      console.log('[Service Worker] Push data:', event.data.text());
-      notification = event.data.json();
-      console.log('[Service Worker] Parsed notification data:', notification);
-    } else {
-      console.log('[Service Worker] No data in push event');
-    }
-  } catch (e) {
-    console.error('[Service Worker] Error parsing notification data:', e);
-    notification = {
-      title: 'Workflow Management',
-      body: 'New notification',
-      icon: '/icons/icon-192x192.png'
+self.addEventListener('push', function (event) {
+    const data = event.data ? event.data.json() : {};
+    const title = data.title || 'Notification';
+    const options = {
+        body: data.body || 'You have a new notification.',
+        icon: data.icon || '/logo.png',
+        badge: data.badge || '/logo.png',
+        data: {
+            url: data.url || '/',
+        },
+        actions: data.actions || []
     };
-  }
 
-  const title = notification.title || 'Workflow Management';
-  
-  // Enhanced options for Windows notifications
-  const options = {
-    body: notification.body || 'You have a new notification',
-    icon: notification.icon || '/logo.png', // Use logo.png for recognizable icon
-    badge: '/icons/icon-72x72.png',
-    data: {
-      ...notification.data || {},
-      url: notification.url || '/workflows',
-      timestamp: notification.timestamp || Date.now()
-    },
-    // Windows notification settings
-    vibrate: [100, 50, 100],
-    timestamp: Date.now(),
-    requireInteraction: true, // Keep notification until user interacts with it
-    tag: 'workflow-' + Date.now(), // Unique tag for each notification
-    actions: [
-      {
-        action: 'view',
-        title: 'View Workflow',
-        icon: '/icons/icon-72x72.png'
-      }
-    ],
-    // Windows 10/11 specific
-    silent: false, // Play notification sound on Windows
-    renotify: true // Always notify even if tag is already present
-  };
-
-  console.log('[Service Worker] Showing notification with title:', title);
-  console.log('[Service Worker] and options:', options);
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-      .then(() => {
-        console.log('[Service Worker] Notification shown successfully');
-      })
-      .catch(error => {
-        console.error('[Service Worker] Error showing notification:', error);
-      })
-  );
+    event.waitUntil(
+        self.registration.showNotification(title, options)
+    );
 });
 
 // Notification click event
-self.addEventListener('notificationclick', event => {
-  console.log('[Service Worker] Notification clicked', event);
-  
-  const clickedNotification = event.notification;
-  clickedNotification.close();
+self.addEventListener('notificationclick', function (event) {
+    event.notification.close();
 
-  // Handle action buttons
-  if (event.action === 'view') {
-    console.log('[Service Worker] "View Workflow" action clicked');
-  }
-
-  // Get notification data
-  const data = clickedNotification.data;
-  const urlToOpen = data.url || '/workflows';
-
-  // Focus on existing window or open a new one
-  event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(clientList => {
-      // Check if there is already a window/tab open with the target URL
-      for (let client of clientList) {
-        if (client.url.includes(urlToOpen) && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      
-      // If no window/tab is already open, open a new one
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
-  );
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+            const urlToOpen = event.notification.data.url;
+            for (let i = 0; i < clientList.length; i++) {
+                const client = clientList[i];
+                if (client.url === urlToOpen && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
 });
 
 // Handle notification close event (for analytics or cleanup)
 self.addEventListener('notificationclose', event => {
   console.log('[Service Worker] Notification was closed', event);
+});
+
+// Optional: Listen for subscription changes if you need to update the server
+self.addEventListener('pushsubscriptionchange', function(event) {
+  event.waitUntil(
+    self.registration.pushManager.subscribe(event.oldSubscription.options)
+    .then(subscription => {
+      // TODO: Send the new subscription to your server
+      console.log('Push subscription changed: ', subscription);
+      // Example: fetch('/push-subscriptions', { method: 'POST', ... body: subscription ... });
+    })
+  );
 });
