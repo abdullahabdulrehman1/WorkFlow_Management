@@ -39,4 +39,13 @@
                 android:height="35dp" />
         </shape>
     </item>
+    <!-- Accept call button background -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#4CAF50" />
+            <stroke
+                android:width="2dp"
+                android:color="#80FFFFFF" />
+        </shape>
+    </item>
 </layer-list>

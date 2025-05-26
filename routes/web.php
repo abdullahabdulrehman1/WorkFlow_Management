@@ -1,5 +1,6 @@
 <?php
 use App\Http\Controllers\ActionController;
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\TriggerController;
 use App\Http\Controllers\WorkflowController;
@@ -31,7 +32,7 @@ Route::get('/call/{callId}', function (Request $request, $callId) {
     ]);
 });
 
-// Call decision screen route (new)
+// Call decision screen route
 Route::get('/call-decision/{callId}', function (Request $request, $callId) {
     return Inertia::render('CallDecision', [
         'callId' => $callId,
@@ -42,15 +43,22 @@ Route::get('/call-decision/{callId}', function (Request $request, $callId) {
 });
 
 // Call test route
-Route::get('/call-test', function () {
-    return Inertia::render('CallTest');
-})->name('call.test');
+Route::get('/call-test', [CallController::class, 'showCallTest'])->name('call.test');
 
-// Push Notification Routes - Using web middleware with CSRF protection
-Route::middleware(['web'])->group(function () {
-    Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
-    Route::post('/api/push-notify', [PushNotificationController::class, 'sendTestPush']);
-});
+// Push Notification Routes - No authentication for testing
+Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
+Route::post('/api/push-notify', [PushNotificationController::class, 'sendTestPush']);
+
+// FCM token routes for mobile devices - No authentication for testing
+Route::post('/api/fcm/register', [PushNotificationController::class, 'storeFcmToken']);
+Route::post('/api/fcm/call', [PushNotificationController::class, 'sendCallNotification']);
+Route::get('/api/fcm/tokens/count', [PushNotificationController::class, 'getTokenCount']);
+
+// Firebase config check route
+Route::get('/api/firebase/config/check', [PushNotificationController::class, 'checkFirebaseConfig']);
+
+// Call notification route - No authentication for testing
+Route::post('/api/calls/notify', [CallController::class, 'notifyCall']);
 
 // Wrapped all API routes in the 'api' middleware group
 Route::middleware(['api'])->group(function () {
@@ -86,14 +94,14 @@ Route::middleware(['api'])->group(function () {
     // Call API routes
     Route::prefix('api/calls')->group(function () {
         Route::post('/initiate', [App\Http\Controllers\CallController::class, 'initiate']);
-        Route::post('/accept', [App\Http\Controllers\CallController::class, 'accept']);
-        Route::post('/reject', [App\Http\Controllers\CallController::class, 'reject']);
-        Route::post('/end', [App\Http\Controllers\CallController::class, 'end']);
-        Route::get('/{callId}/status', [App\Http\Controllers\CallController::class, 'status']);
+        Route::post('/accept', [CallController::class, 'accept']);
+        Route::post('/reject', [CallController::class, 'reject']);
+        Route::post('/end', [CallController::class, 'end']);
+        Route::get('/{callId}/status', [CallController::class, 'status']);
     });
 
-    // FCM routes for token registration
-    Route::post('/api/fcm/register', [App\Http\Controllers\FCMController::class, 'register']);
+    // API route for initiating calls
+    Route::post('/api/initiate-call', [CallController::class, 'initiateCall']);
 });
 
 // User route with auth middleware

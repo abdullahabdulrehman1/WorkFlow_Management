@@ -19,7 +19,10 @@ class PushSubscription extends Model
         'public_key',
         'auth_token',
         'content_encoding',
+        'expirationTime',
         'user_id',
+        'device_id',
+        'platform'
     ];
 
     /**

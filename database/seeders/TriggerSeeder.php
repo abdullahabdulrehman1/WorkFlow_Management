@@ -35,6 +35,13 @@ class TriggerSeeder extends Seeder
                 'name' => 'Form Submission',
                 'parameters' => json_encode(['form_id' => 'string']),
             ],
+            [
+                'name' => 'Event Notification',
+                'parameters' => json_encode([
+                    'event_type' => ['user_signup', 'payment_received', 'order_completed', 'deadline_approaching'],
+                    'priority' => ['low', 'medium', 'high'],
+                ]),
+            ],
         ];
 
         foreach ($triggers as $trigger) {

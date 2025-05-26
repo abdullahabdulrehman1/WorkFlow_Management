@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('auth_token')->nullable();
             $table->string('content_encoding')->nullable();
             $table->timestamp('expirationTime')->nullable();
+            $table->string('device_id')->nullable();
+            $table->string('platform')->nullable();
             $table->timestamps();
         });
     }

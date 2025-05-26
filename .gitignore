@@ -62,3 +62,5 @@ dist/
 .env.local
 .DS_Store
 Thumbs.db
+firebase-credentials.json
+workflowz360-firebase-adminsdk-fbsvc-76a0a2f565.json

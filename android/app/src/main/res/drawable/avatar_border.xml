@@ -17,14 +17,10 @@
     <!-- Background -->
     <item>
         <shape android:shape="oval">
-            <gradient
-                android:startColor="#FFFFFF"
-                android:endColor="#E0E0E0"
-                android:type="radial"
-                android:gradientRadius="65dp" />
+            <solid android:color="#3384C7FB" />
             <stroke
                 android:width="3dp"
-                android:color="#FFFFFF" />
+                android:color="#80FFFFFF" />
         </shape>
     </item>
 </layer-list>

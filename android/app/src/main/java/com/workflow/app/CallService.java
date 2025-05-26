@@ -7,209 +7,320 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
+import android.os.Looper;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+/**
+ * Service to handle incoming calls, showing a persistent notification
+ * and turning on the screen to show the incoming call activity.
+ */
 public class CallService extends Service {
-    private static final int NOTIFICATION_ID = 1001;
-    private static final String CHANNEL_ID = "incoming_calls";
     private static final String TAG = "CallService";
+    private static final String CHANNEL_ID = "call_channel";
+    private static final int NOTIFICATION_ID = 1000;
+    private static final int AUTO_DISMISS_TIMEOUT = 45000; // 45 seconds
+    
+    private MediaPlayer ringtonePlayer;
+    private Vibrator vibrator;
+    private Handler timeoutHandler;
     private PowerManager.WakeLock wakeLock;
+    private Handler mainHandler;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel();
+        Log.d(TAG, "CallService created");
         
-        // Acquire a wake lock to ensure the device stays awake for incoming calls
-        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(
-            PowerManager.FULL_WAKE_LOCK | 
-            PowerManager.ACQUIRE_CAUSES_WAKEUP | 
-            PowerManager.ON_AFTER_RELEASE, 
-            "workflow:callWakeLock");
-    }
-
-    @Nullable
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+        // Initialize timeout handler
+        timeoutHandler = new Handler(Looper.getMainLooper());
+        mainHandler = new Handler(Looper.getMainLooper());
+        
+        // Create the notification channel (required for Android O+)
+        createNotificationChannel();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            String action = intent.getAction();
-            if ("INCOMING_CALL".equals(action)) {
-                String callerId = intent.getStringExtra("callerId");
-                String callerName = intent.getStringExtra("callerName");
-                String callType = intent.getStringExtra("callType");
-                String callId = intent.getStringExtra("callId");
-                
-                Log.d(TAG, "Incoming call from: " + callerName + " (" + callerId + "), type: " + callType);
-                
-                // Ensure the screen turns on for incoming calls
-                if (wakeLock != null && !wakeLock.isHeld()) {
-                    wakeLock.acquire(60*1000L); // Timeout after 1 minute if not handled
-                }
-                
-                showIncomingCallNotification(callerId, callerName, callType, callId);
-            } else if ("END_CALL".equals(action)) {
-                // Release wake lock if it's held
-                if (wakeLock != null && wakeLock.isHeld()) {
-                    wakeLock.release();
-                }
-                
-                stopForeground(true);
-                stopSelf();
-            }
+        if (intent == null || intent.getAction() == null) {
+            stopSelf();
+            return START_NOT_STICKY;
         }
+        
+        String action = intent.getAction();
+        Log.d(TAG, "CallService action: " + action);
+        
+        switch (action) {
+            case "INCOMING_CALL":
+                // Handle incoming call
+                handleIncomingCall(intent);
+                break;
+            case "ACCEPT_CALL":
+                // Accept the call and stop ringing
+                stopRinging();
+                stopSelf();
+                break;
+            case "DECLINE_CALL":
+                // Decline the call and stop the service
+                stopRinging();
+                stopSelf();
+                break;
+            default:
+                stopSelf();
+                break;
+        }
+        
         return START_STICKY;
     }
 
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Incoming Calls",
-                    NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription("Notifications for incoming calls");
-            channel.enableVibration(true);
-            channel.setVibrationPattern(new long[]{0, 1000, 500, 1000});
-            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            // Enable lights and set color
-            channel.enableLights(true);
-            channel.setLightColor(0xFF0000FF); // Blue color
-            // Set the channel to be important
-            channel.setImportance(NotificationManager.IMPORTANCE_HIGH);
-            channel.setBypassDnd(true); // Bypass Do Not Disturb mode
-            
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+    /**
+     * Handle an incoming call by showing a notification and activity
+     */
+    private void handleIncomingCall(Intent intent) {
+        // Get call details from intent
+        final String callerId = intent.getStringExtra("callerId");
+        final String callerName = intent.getStringExtra("callerName");
+        final String callType = intent.getStringExtra("callType");
+        final String callId = intent.getStringExtra("callId");
+        
+        if (callerId == null || callerName == null) {
+            Log.e(TAG, "Missing call details");
+            stopSelf();
+            return;
         }
-    }
-
-    private void showIncomingCallNotification(String callerId, String callerName, String callType, String callId) {
-        // Create an intent for the native CallDecisionActivity
-        Intent fullScreenIntent = new Intent(this, CallDecisionActivity.class);
         
-        // Add all required parameters for Call Decision Screen
-        fullScreenIntent.putExtra("callerId", callerId);
-        fullScreenIntent.putExtra("callerName", callerName);
-        fullScreenIntent.putExtra("callType", callType);
-        fullScreenIntent.putExtra("callId", callId);
+        // Acquire wake lock to turn on screen
+        acquireWakeLock();
         
-        // Set high priority flags for the full-screen intent
-        fullScreenIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                               Intent.FLAG_ACTIVITY_CLEAR_TOP | 
-                               Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        
-        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
-                this, 0, fullScreenIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        
-        // Create accept call intent - which should go directly to the active call screen
+        // Create accept and decline actions for notification
         Intent acceptIntent = new Intent(this, CallActionReceiver.class);
         acceptIntent.setAction("ACCEPT_CALL");
         acceptIntent.putExtra("callerId", callerId);
         acceptIntent.putExtra("callerName", callerName);
         acceptIntent.putExtra("callType", callType);
         acceptIntent.putExtra("callId", callId);
-        acceptIntent.putExtra("openCallScreen", true); // Flag to ensure call screen opens
         
-        // Direct to the actual call screen with proper URL encoding
-        String customRoute;
-        try {
-            // Use URLEncoder for proper encoding of parameters
-            String encodedCallerName = java.net.URLEncoder.encode(callerName != null ? callerName : "Unknown", "UTF-8");
-            String encodedCallerId = java.net.URLEncoder.encode(callerId, "UTF-8");
-            String encodedCallType = java.net.URLEncoder.encode(callType, "UTF-8");
-            
-            // Build the route with correct parameter names matching frontend expectations
-            customRoute = "/call/" + callId + 
-                    "?type=" + encodedCallType + 
-                    "&caller=" + encodedCallerName +
-                    "&recipient=" + encodedCallerId;
-                    
-            Log.d(TAG, "Creating accept intent with properly encoded route: " + customRoute);
-        } catch (Exception e) {
-            Log.e(TAG, "Error encoding URL parameters", e);
-            // Fallback with basic route if encoding fails
-            customRoute = "/call/" + callId;
-        }
-        
-        acceptIntent.putExtra("directCallRoute", customRoute);
+        Intent declineIntent = new Intent(this, CallActionReceiver.class);
+        declineIntent.setAction("DECLINE_CALL");
+        declineIntent.putExtra("callerId", callerId);
         
         PendingIntent acceptPendingIntent = PendingIntent.getBroadcast(
-                this, 1, acceptIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            this, 0, acceptIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         
-        // Create reject call intent
-        Intent rejectIntent = new Intent(this, CallActionReceiver.class);
-        rejectIntent.setAction("REJECT_CALL");
-        rejectIntent.putExtra("callerId", callerId);
-        rejectIntent.putExtra("callerName", callerName);
-        rejectIntent.putExtra("callType", callType);
-        rejectIntent.putExtra("callId", callId);
-        PendingIntent rejectPendingIntent = PendingIntent.getBroadcast(
-                this, 2, rejectIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        // Use the app icon as the notification icon
-        int smallIconResId = getApplicationInfo().icon;
+        PendingIntent declinePendingIntent = PendingIntent.getBroadcast(
+            this, 1, declineIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         
-        // Get the resource ID of the mipmap icon (which is typically the app icon)
-        int largeIconResId = getResources().getIdentifier("ic_launcher", "mipmap", getPackageName());
+        // Create full-screen intent to launch call activity
+        Intent fullScreenIntent = new Intent(this, CallDecisionActivity.class);
+        fullScreenIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                               Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                               Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        fullScreenIntent.putExtra("callerId", callerId);
+        fullScreenIntent.putExtra("callerName", callerName);
+        fullScreenIntent.putExtra("callType", callType);
+        fullScreenIntent.putExtra("callId", callId);
         
-        // Create large bitmap icon for the notification
-        Bitmap largeIcon = null;
-        if (largeIconResId != 0) {
-            try {
-                largeIcon = BitmapFactory.decodeResource(getResources(), largeIconResId);
-            } catch (Exception e) {
-                Log.e(TAG, "Error loading large icon", e);
-            }
-        }
-
+        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
+            this, 2, fullScreenIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        
+        // Build the notification with high priority
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(smallIconResId)
-                .setContentTitle((callType.equals("video") ? "📹 Video Call" : "📞 Audio Call"))
-                .setContentText("from " + (callerName != null ? callerName : callerId))
-                .setContentIntent(fullScreenPendingIntent) // Set the pending intent for the entire notification
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setFullScreenIntent(fullScreenPendingIntent, true)
-                .setOngoing(true)
-                .addAction(android.R.drawable.ic_menu_call, "Accept", acceptPendingIntent)
-                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", rejectPendingIntent)
-                .setAutoCancel(false)
-                // Add additional settings for better visibility
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // Show on lock screen
-                .setTimeoutAfter(60000) // Timeout after 1 minute
-                .setVibrate(new long[]{0, 1000, 500, 1000, 500, 1000}) // Strong vibration pattern
-                .setSound(android.provider.Settings.System.DEFAULT_RINGTONE_URI); // Default ringtone
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Incoming " + (callType.equals("video") ? "Video" : "Voice") + " Call")
+            .setContentText(callerName)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .addAction(R.drawable.decline_call_icon, "Decline", declinePendingIntent)
+            .addAction(R.drawable.accept_call_icon, "Accept", acceptPendingIntent);
         
-        // Add large icon if available
-        if (largeIcon != null) {
-            builder.setLargeIcon(largeIcon);
-        }
+        // Start foreground service with the notification
+        Notification notification = builder.build();
+        startForeground(NOTIFICATION_ID, notification);
         
-        startForeground(NOTIFICATION_ID, builder.build());
+        // Start ringing
+        startRinging();
+        
+        // Set a timeout to automatically dismiss the call
+        timeoutHandler.postDelayed(this::timeoutCall, AUTO_DISMISS_TIMEOUT);
+        
+        // Launch the call screen directly with a small delay to ensure service is fully started
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "Launching CallDecisionActivity for call from: " + callerName);
+                Intent launchIntent = new Intent(CallService.this, CallDecisionActivity.class);
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                                   Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                                   Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                launchIntent.putExtra("callerId", callerId);
+                launchIntent.putExtra("callerName", callerName);
+                launchIntent.putExtra("callType", callType);
+                launchIntent.putExtra("callId", callId);
+                startActivity(launchIntent);
+            }
+        }, 300);
     }
     
-    @Override
-    public void onDestroy() {
-        // Make sure to release the wake lock if the service is destroyed
+    /**
+     * Timeout the call if not answered
+     */
+    private void timeoutCall() {
+        Log.d(TAG, "Call timed out");
+        stopRinging();
+        stopSelf();
+    }
+    
+    /**
+     * Start playing ringtone and vibrating
+     */
+    private void startRinging() {
+        try {
+            // Get the ringtone
+            Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+            
+            // Play ringtone
+            ringtonePlayer = new MediaPlayer();
+            ringtonePlayer.setDataSource(this, ringtoneUri);
+            ringtonePlayer.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+            ringtonePlayer.setLooping(true);
+            ringtonePlayer.prepare();
+            ringtonePlayer.start();
+            
+            // Start vibration pattern
+            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                long[] pattern = {0, 1000, 1000};
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+                } else {
+                    vibrator.vibrate(pattern, 0);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting ringtone", e);
+        }
+    }
+    
+    /**
+     * Stop ringtone and vibration
+     */
+    private void stopRinging() {
+        // Cancel the timeout
+        timeoutHandler.removeCallbacksAndMessages(null);
+        
+        // Stop ringtone
+        if (ringtonePlayer != null) {
+            if (ringtonePlayer.isPlaying()) {
+                ringtonePlayer.stop();
+            }
+            ringtonePlayer.release();
+            ringtonePlayer = null;
+        }
+        
+        // Stop vibration
+        if (vibrator != null) {
+            vibrator.cancel();
+            vibrator = null;
+        }
+        
+        // Release wake lock
+        releaseWakeLock();
+    }
+
+    /**
+     * Create notification channel for Android O+
+     */
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "Call Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            );
+            
+            channel.setDescription("Notifications for incoming calls");
+            channel.enableLights(true);
+            channel.setLightColor(Color.RED);
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 1000, 500, 1000});
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            
+            // Set the channel's sound
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .build();
+            channel.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), audioAttributes);
+            
+            // Register the channel
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            if (notificationManager != null) {
+                notificationManager.createNotificationChannel(channel);
+            }
+        }
+    }
+    
+    /**
+     * Acquire wake lock to turn on screen
+     */
+    private void acquireWakeLock() {
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (powerManager != null && wakeLock == null) {
+            wakeLock = powerManager.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK | 
+                PowerManager.ACQUIRE_CAUSES_WAKEUP | 
+                PowerManager.ON_AFTER_RELEASE,
+                "workflow:callWakeLock"
+            );
+            wakeLock.acquire(AUTO_DISMISS_TIMEOUT);
+        }
+    }
+    
+    /**
+     * Release wake lock
+     */
+    private void releaseWakeLock() {
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
+            wakeLock = null;
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(TAG, "CallService destroyed");
+        stopRinging();
+        releaseWakeLock();
+        timeoutHandler.removeCallbacksAndMessages(null);
+        mainHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 }

@@ -1,6 +1,7 @@
 package com.workflow.app;
 
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
@@ -16,8 +17,13 @@ import android.view.animation.LinearInterpolator;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
+import android.app.KeyguardManager;
+import android.content.Context;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 public class CallDecisionActivity extends AppCompatActivity {
     private static final String TAG = "CallDecisionActivity";
@@ -37,12 +43,41 @@ public class CallDecisionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         // Set flags to show the activity on the lock screen and wake up the screen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+            
+            KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+            keyguardManager.requestDismissKeyguard(this, null);
+        } else {
+            getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            );
+        }
+        
+        // Set additional window flags for highest priority
         getWindow().addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS |
+            WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR |
+            WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS |
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
         );
+        
+        // Make activity appear on top of the lock screen
+        getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+        
+        // Hide system UI for immersive experience
+        WindowInsetsControllerCompat insetsController = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        }
         
         setContentView(R.layout.call_decision_layout);
         

@@ -2,12 +2,72 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import WorkflowLayout from '../components/layout/WorkflowLayout';
 import useIsMobile from '../hooks/useIsMobile';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 
-// Improved web fallback implementation with better console logging
+// Improved detection of native environment
+const isNativeEnvironment = () => {
+  // Check if Capacitor is available and we're on a native platform
+  const isCapacitorNative = typeof window !== 'undefined' && 
+                            window.Capacitor !== undefined && 
+                            Capacitor.isNativePlatform && 
+                            Capacitor.isNativePlatform();
+  
+  // Check if Cordova is available as fallback
+  const isCordova = typeof window !== 'undefined' && window.cordova !== undefined;
+  
+  // Use user agent detection as last resort
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  
+  console.log('[CallTest] Environment detection:', { 
+    isCapacitorNative, 
+    isCordova,
+    isMobileUA,
+    platform: Capacitor.getPlatform ? Capacitor.getPlatform() : 'unknown'
+  });
+  
+  return isCapacitorNative || isCordova || isMobileUA;
+};
+
+// Enhanced web fallback implementation with better console logging
 const CallPluginWeb = {
   startCall: async ({ callerId, callerName, callType }) => {
     console.log('[CallPluginWeb] Web fallback for startCall', { callerId, callerName, callType });
+    
+    // If we're on a mobile device, try to use direct tel: or facetime: protocol
+    if (isNativeEnvironment()) {
+      console.log('[CallPluginWeb] Attempting direct protocol call on mobile');
+      try {
+        // Format a dummy phone number for testing
+        const phoneNumber = '+12345678900';
+        
+        // Choose appropriate URL scheme based on call type
+        const scheme = callType === 'video' ? 'facetime:' : 'tel:';
+        const url = scheme + phoneNumber;
+        
+        // Create an invisible anchor element and trigger it
+        const callAnchor = document.createElement('a');
+        callAnchor.setAttribute('href', url);
+        callAnchor.setAttribute('target', '_system');
+        callAnchor.style.display = 'none';
+        document.body.appendChild(callAnchor);
+        
+        // Trigger a click on the anchor
+        callAnchor.click();
+        
+        // Clean up
+        setTimeout(() => {
+            document.body.removeChild(callAnchor);
+        }, 100);
+        
+        return { callId: Date.now().toString(), success: true, directProtocol: true };
+      } catch (err) {
+        console.error('[CallPluginWeb] Direct protocol call failed:', err);
+        // Continue with web fallback if direct call fails
+      }
+    }
+    
+    // Web fallback implementation
     return { callId: Date.now().toString(), success: true };
   },
   endCall: async () => {
@@ -16,10 +76,37 @@ const CallPluginWeb = {
   }
 };
 
-// Register the plugin with proper fallback
-const CallPlugin = Capacitor.isNativePlatform() 
-  ? registerPlugin('CallPlugin') 
-  : CallPluginWeb;
+// Get the appropriate CallPlugin implementation
+const getCallPlugin = () => {
+  try {
+    // Check if native plugin is available
+    if (isNativeEnvironment() && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CallPlugin) {
+      console.log('[CallTest] Using native CallPlugin');
+      return window.Capacitor.Plugins.CallPlugin;
+    }
+    
+    // Try native plugin through dynamic import (alternative registration)
+    if (isNativeEnvironment() && window.Capacitor) {
+      try {
+        const { registerPlugin } = require('@capacitor/core');
+        const nativePlugin = registerPlugin('CallPlugin');
+        console.log('[CallTest] Registered native CallPlugin dynamically');
+        return nativePlugin;
+      } catch (err) {
+        console.warn('[CallTest] Failed to register native plugin:', err);
+      }
+    }
+    
+    console.log('[CallTest] Using web fallback for CallPlugin');
+    return CallPluginWeb;
+  } catch (err) {
+    console.error('[CallTest] Error setting up CallPlugin:', err);
+    return CallPluginWeb;
+  }
+};
+
+// Get the appropriate plugin implementation
+const CallPlugin = getCallPlugin();
 
 const CallTest = () => {
   const [callerId, setCallerId] = useState('test-user-123');
