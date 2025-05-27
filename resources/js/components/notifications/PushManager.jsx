@@ -1,7 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Function to convert base64 string to Uint8Array
 function urlBase64ToUint8Array(base64String) {
@@ -43,6 +42,18 @@ function showFallbackNotification(title, body) {
     }
 }
 
+// Function to detect if running on localhost
+function isLocalhost() {
+    return window.location.hostname === 'localhost' || 
+           window.location.hostname === '127.0.0.1' ||
+           window.location.hostname.indexOf('192.168.') === 0;
+}
+
+// Check if running on a mobile device
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
 // Function to subscribe to push notifications
 export async function subscribeToPush() {
     try {
@@ -51,20 +62,16 @@ export async function subscribeToPush() {
             console.log('Push notifications not supported');
             return { success: false, reason: 'unsupported' };
         }
-        
-        // Unsubscribe from existing subscriptions first
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-            const subscription = await registration.pushManager.getSubscription();
-            if (subscription) {
-                await subscription.unsubscribe();
-                console.log('Unsubscribed from previous push subscription');
-            }
+
+        // Register service worker for all environments
+        let swRegistration;
+        try {
+            swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+            await navigator.serviceWorker.ready;
+        } catch (error) {
+            console.error('Error registering service worker:', error);
+            return { success: false, reason: 'sw-registration-failed', error };
         }
-        
-        // Register service worker
-        const swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-        await navigator.serviceWorker.ready;
         
         // Request permission
         const permission = await Notification.requestPermission();
@@ -80,23 +87,45 @@ export async function subscribeToPush() {
             return { success: false, reason: 'missing-key' };
         }
         
+        // Unsubscribe from existing subscriptions first
+        const existingSub = await swRegistration.pushManager.getSubscription();
+        if (existingSub) {
+            await existingSub.unsubscribe();
+            console.log('Unsubscribed from previous push subscription');
+        }
+        
+        let subscription;
+        let subscriptionJson;
+        
         try {
-            // Subscribe
+            // Subscribe with real push service
             const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-            const newSubscription = await swRegistration.pushManager.subscribe({
+            subscription = await swRegistration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: applicationServerKey
             });
             
             // Get subscription as JSON
-            const subscriptionJson = newSubscription.toJSON();
+            subscriptionJson = subscription.toJSON();
             
-            // Send to server
+            console.log('Created real push subscription:', subscriptionJson);
+        } catch (error) {
+            console.error('Error during subscription process:', error);
+            return { success: false, reason: 'subscription-error', error };
+        }
+        
+        // Send the subscription to the server
+        try {
+            console.log('Sending subscription to server:', subscription.endpoint);
+            
             const response = await axios.post('/api/subscribe', {
-                endpoint: newSubscription.endpoint,
+                endpoint: subscription.endpoint,
                 public_key: subscriptionJson.keys.p256dh,
                 auth_token: subscriptionJson.keys.auth,
-                content_encoding: 'aes128gcm'
+                content_encoding: 'aesgcm', // Use aesgcm for better compatibility
+                platform: navigator.userAgent,
+                device_id: navigator.userAgent.replace(/\D+/g, '').substring(0, 6) + Date.now().toString().substring(9, 13),
+                user_id: 1  // Add user_id if your schema requires it
             });
             
             if (response.data.success) {
@@ -104,11 +133,11 @@ export async function subscribeToPush() {
                 return { success: true };
             } else {
                 console.error('Server rejected subscription:', response.data);
-                return { success: false, reason: 'server-rejected' };
+                return { success: false, reason: 'server-rejected', response: response.data };
             }
         } catch (error) {
-            console.error('Error during subscription process:', error);
-            return { success: false, reason: 'subscription-error', error };
+            console.error('Error saving subscription to server:', error);
+            return { success: false, reason: 'server-error', error };
         }
     } catch (error) {
         console.error('Error subscribing to push:', error);
@@ -119,6 +148,20 @@ export async function subscribeToPush() {
 // Function to send push notification
 export async function sendNotification(title, body, url = null) {
     try {
+        // If running on localhost, use local notification instead
+        if (isLocalhost()) {
+            console.log('Running on localhost - using local notification');
+            showFallbackNotification(title, body);
+            
+            // If on mobile in development, use a different notification approach
+            if (isMobileDevice()) {
+                console.log('Mobile device detected in local environment');
+                // Just use the browser notification for now
+            }
+            
+            return { sent: true, isLocalDevelopment: true };
+        }
+        
         const response = await axios.post('/api/push-notify', {
             title,
             body,
@@ -146,9 +189,14 @@ export async function sendNotification(title, body, url = null) {
 
 // React component that initializes push notifications
 const PushManager = () => {
+    const [isLocalhostEnv, setIsLocalhostEnv] = useState(false);
+    
     useEffect(() => {
+        // Check if running on localhost
+        setIsLocalhostEnv(isLocalhost());
+        
         const initPushNotifications = async () => {
-            // Dont run in iframes
+            // Don't run in iframes
             if (window.self !== window.top) return;
             
             try {
@@ -156,7 +204,9 @@ const PushManager = () => {
                 setTimeout(async () => {
                     const result = await subscribeToPush();
                     
-                    if (!result.success) {
+                    if (result.isLocalDevelopment) {
+                        console.log('Running in local development mode - mock push subscription created');
+                    } else if (!result.success) {
                         console.log('Push notifications not enabled:', result.reason);
                         
                         // Only show permission errors to user
@@ -166,10 +216,11 @@ const PushManager = () => {
                     }
                 }, 2000);
 
-                // Request Local Notifications permission
-                const { granted } = await LocalNotifications.requestPermissions();
-                if (!granted) {
-                    console.log('Local notifications permission denied');
+                // For mobile apps, request notification permissions if needed
+                if (isMobileDevice()) {
+                    if ('Notification' in window) {
+                        Notification.requestPermission();
+                    }
                 }
             } catch (error) {
                 console.error('Error initializing push notifications:', error);
@@ -178,6 +229,24 @@ const PushManager = () => {
         
         initPushNotifications();
     }, []);
+    
+    // Show a small indicator during local development
+    if (isLocalhostEnv && process.env.NODE_ENV === 'development') {
+        return (
+            <div style={{
+                position: 'fixed',
+                bottom: 10, 
+                right: 10, 
+                background: 'rgba(0,0,0,0.1)', 
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '10px',
+                zIndex: 9999
+            }}>
+                Local notifications active
+            </div>
+        );
+    }
     
     return null;
 };

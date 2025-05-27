@@ -44,17 +44,16 @@ self.addEventListener('push', event => {
 
   const title = notification.title || 'Workflow Management';
   
-  // Enhanced options for Windows notifications
+  // Enhanced options for notifications
   const options = {
     body: notification.body || 'You have a new notification',
-    icon: notification.icon || '/logo.png', // Use logo.png for recognizable icon
+    icon: notification.icon || '/logo.png',
     badge: '/icons/icon-72x72.png',
     data: {
       ...notification.data || {},
       url: notification.url || '/workflows',
       timestamp: notification.timestamp || Date.now()
     },
-    // Windows notification settings
     vibrate: [100, 50, 100],
     timestamp: Date.now(),
     requireInteraction: true, // Keep notification until user interacts with it
@@ -66,22 +65,30 @@ self.addEventListener('push', event => {
         icon: '/icons/icon-72x72.png'
       }
     ],
-    // Windows 10/11 specific
-    silent: false, // Play notification sound on Windows
+    // Important for Windows compatibility
+    silent: false, // Play notification sound
     renotify: true // Always notify even if tag is already present
   };
 
   console.log('[Service Worker] Showing notification with title:', title);
   console.log('[Service Worker] and options:', options);
 
+  // Show notification and open window if needed
   event.waitUntil(
-    self.registration.showNotification(title, options)
-      .then(() => {
-        console.log('[Service Worker] Notification shown successfully');
-      })
-      .catch(error => {
-        console.error('[Service Worker] Error showing notification:', error);
-      })
+    // First check if we need to open a window
+    self.clients.matchAll({ type: 'window' }).then(clientList => {
+      const focused = clientList.some(client => client.focused);
+      const hasClient = clientList.length > 0;
+      
+      // Always show notification
+      return self.registration.showNotification(title, options)
+        .then(() => {
+          console.log('[Service Worker] Notification shown successfully');
+        })
+        .catch(error => {
+          console.error('[Service Worker] Error showing notification:', error);
+        });
+    })
   );
 });
 

@@ -69,6 +69,7 @@ class PushNotificationController extends Controller
     public function sendTestPush(Request $request)
     {
         try {
+            // No need to filter by 'localhost' anymore since we deleted those entries
             $subscriptions = PushSubscription::all();
             
             if ($subscriptions->isEmpty()) {
@@ -103,7 +104,7 @@ class PushNotificationController extends Controller
                     'publicKey' => $vapidPublicKey,
                     'privateKey' => $vapidPrivateKey,
                 ],
-                'contentEncoding' => 'aes128gcm'
+                'contentEncoding' => 'aesgcm' // Using aesgcm for better compatibility
             ];
             
             $webPush = new WebPush($auth);
@@ -114,7 +115,9 @@ class PushNotificationController extends Controller
             $payload = json_encode([
                 'title' => $request->input('title', 'Workflow Management'),
                 'body' => $request->input('body', 'You have a new notification'),
-                'icon' => '/logo.png'
+                'icon' => '/logo.png',
+                'url' => $request->input('url', '/workflows'),
+                'timestamp' => time()
             ]);
             
             // Process each subscription with individual error handling
@@ -127,7 +130,7 @@ class PushNotificationController extends Controller
                             'p256dh' => $sub->public_key,
                             'auth' => $sub->auth_token,
                         ],
-                        'contentEncoding' => 'aes128gcm'
+                        'contentEncoding' => 'aesgcm' // Using aesgcm for better compatibility
                     ]);
                     
                     // Queue notification
@@ -190,6 +193,31 @@ class PushNotificationController extends Controller
                     'line' => $e->getLine()
                 ]
             ]);
+        }
+    }
+
+    /**
+     * Clean up mock push subscriptions.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function cleanupMockSubscriptions()
+    {
+        try {
+            // Delete all mock subscriptions from localhost testing
+            $count = PushSubscription::where('endpoint', 'LIKE', 'https://localhost-testing-%')->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' mock subscriptions deleted'
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error cleaning up subscriptions: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 }

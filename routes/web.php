@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 
-// Web routes with normal CSRF protection
 Route::get('/', function () {
     return Inertia::render('App');
 });
@@ -50,6 +49,7 @@ Route::get('/call-test', function () {
 Route::middleware(['web'])->group(function () {
     Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
     Route::post('/api/push-notify', [PushNotificationController::class, 'sendTestPush']);
+    Route::get('/api/cleanup-mock-subscriptions', [PushNotificationController::class, 'cleanupMockSubscriptions']);
 });
 
 // Wrapped all API routes in the 'api' middleware group
