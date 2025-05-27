@@ -1,6 +1,5 @@
 <?php
 use App\Http\Controllers\ActionController;
-use App\Http\Controllers\CallController;
 use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\TriggerController;
 use App\Http\Controllers\WorkflowController;
@@ -42,8 +41,16 @@ Route::get('/call-decision/{callId}', function (Request $request, $callId) {
     ]);
 });
 
-// Call test route
-Route::get('/call-test', [CallController::class, 'showCallTest'])->name('call.test');
+// Call test route - using simple closure instead of CallController
+Route::get('/call-test', function (Request $request) {
+    $phoneNumber = $request->query('phone');
+    $isVideo = filter_var($request->query('video', 'false'), FILTER_VALIDATE_BOOLEAN);
+    
+    return inertia('CallTest', [
+        'phoneNumber' => $phoneNumber,
+        'isVideo' => $isVideo,
+    ]);
+})->name('call.test');
 
 // Push Notification Routes - No authentication for testing
 Route::post('/api/subscribe', [PushNotificationController::class, 'subscribe']);
@@ -51,14 +58,13 @@ Route::post('/api/push-notify', [PushNotificationController::class, 'sendTestPus
 
 // FCM token routes for mobile devices - No authentication for testing
 Route::post('/api/fcm/register', [PushNotificationController::class, 'storeFcmToken']);
-Route::post('/api/fcm/call', [PushNotificationController::class, 'sendCallNotification']);
 Route::get('/api/fcm/tokens/count', [PushNotificationController::class, 'getTokenCount']);
 
 // Firebase config check route
 Route::get('/api/firebase/config/check', [PushNotificationController::class, 'checkFirebaseConfig']);
 
-// Call notification route - No authentication for testing
-Route::post('/api/calls/notify', [CallController::class, 'notifyCall']);
+// Call notification route - Notify ALL users (simplified)
+Route::post('/api/calls/notify', [PushNotificationController::class, 'sendCallNotificationToAll']);
 
 // Wrapped all API routes in the 'api' middleware group
 Route::middleware(['api'])->group(function () {
@@ -91,17 +97,64 @@ Route::middleware(['api'])->group(function () {
         Route::get('/{action}', [ActionController::class, 'show']);
     });
 
-    // Call API routes
+    // Call API routes - simplified since we only need basic call handling
     Route::prefix('api/calls')->group(function () {
-        Route::post('/initiate', [App\Http\Controllers\CallController::class, 'initiate']);
-        Route::post('/accept', [CallController::class, 'accept']);
-        Route::post('/reject', [CallController::class, 'reject']);
-        Route::post('/end', [CallController::class, 'end']);
-        Route::get('/{callId}/status', [CallController::class, 'status']);
+        Route::post('/initiate', function (Request $request) {
+            $validated = $request->validate([
+                'phone_number' => 'required|string',
+                'is_video' => 'boolean',
+            ]);
+            
+            $callId = 'call_' . uniqid();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Call initiated successfully',
+                'call_id' => $callId,
+                'details' => [
+                    'phone_number' => $validated['phone_number'],
+                    'type' => ($validated['is_video'] ?? false) ? 'video' : 'voice',
+                ]
+            ]);
+        });
+        
+        // Basic call status endpoints
+        Route::post('/accept', function (Request $request) {
+            return response()->json(['success' => true, 'message' => 'Call accepted']);
+        });
+        
+        Route::post('/reject', function (Request $request) {
+            return response()->json(['success' => true, 'message' => 'Call rejected']);
+        });
+        
+        Route::post('/end', function (Request $request) {
+            return response()->json(['success' => true, 'message' => 'Call ended']);
+        });
+        
+        Route::get('/{callId}/status', function ($callId) {
+            return response()->json(['call_id' => $callId, 'status' => 'active']);
+        });
     });
 
-    // API route for initiating calls
-    Route::post('/api/initiate-call', [CallController::class, 'initiateCall']);
+    // API route for initiating calls - Now using closure
+    Route::post('/api/initiate-call', function (Request $request) {
+        $validated = $request->validate([
+            'phone_number' => 'required|string',
+            'is_video' => 'boolean',
+        ]);
+        
+        $callId = 'call_' . uniqid();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Call initiated successfully',
+            'call_id' => $callId,
+            'details' => [
+                'phone_number' => $validated['phone_number'],
+                'type' => ($validated['is_video'] ?? false) ? 'video' : 'voice',
+            ]
+        ]);
+    });
 });
 
 // User route with auth middleware

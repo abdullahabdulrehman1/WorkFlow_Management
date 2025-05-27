@@ -30,12 +30,13 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         super.onMessageReceived(remoteMessage);
         
         Log.d(TAG, "From: " + remoteMessage.getFrom());
+        Log.d(TAG, "App state: " + (isAppInForeground() ? "Foreground" : "Background/Killed"));
         
-        // Acquire wake lock to ensure processing completes
+        // Acquire wake lock to ensure processing completes even when app is killed
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         PowerManager.WakeLock wakeLock = powerManager.newWakeLock(
-            PowerManager.PARTIAL_WAKE_LOCK,
-            "workflow:fcm_wakelock"
+            PowerManager.PARTIAL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "workflow:fcm_call_wakelock"
         );
         wakeLock.acquire(WAKE_LOCK_TIMEOUT);
         
@@ -47,14 +48,23 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
                 
                 // Check if this is a call notification
                 if (isCallNotification(data)) {
+                    // Always handle call notifications regardless of app state
                     handleCallNotification(data);
                     return;
                 }
             }
             
-            // Check if message contains notification payload
+            // Check if message contains notification payload (for non-call notifications)
             if (remoteMessage.getNotification() != null) {
                 Log.d(TAG, "Message Notification Body: " + remoteMessage.getNotification().getBody());
+                
+                // For background calls, also check notification data
+                Map<String, String> data = remoteMessage.getData();
+                if (isCallNotification(data)) {
+                    handleCallNotification(data);
+                    return;
+                }
+                
                 // Handle regular notifications here if needed
             }
         } finally {
@@ -126,5 +136,27 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
         } catch (Exception e) {
             Log.e(TAG, "Error handling call notification", e);
         }
+    }
+    
+    /**
+     * Check if the app is currently in foreground
+     */
+    private boolean isAppInForeground() {
+        android.app.ActivityManager activityManager = 
+            (android.app.ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) return false;
+        
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes = 
+            activityManager.getRunningAppProcesses();
+        
+        if (processes == null) return false;
+        
+        String packageName = getPackageName();
+        for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+            if (process.processName.equals(packageName)) {
+                return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+            }
+        }
+        return false;
     }
 }

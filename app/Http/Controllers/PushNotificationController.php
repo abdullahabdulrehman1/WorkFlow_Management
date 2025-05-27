@@ -373,21 +373,28 @@ class PushNotificationController extends Controller
             // Send to each device token
             foreach ($subscriptions as $sub) {
                 try {
-                    // Prepare data payload for call
+                    // For killed app scenarios, send DATA-ONLY message to prevent auto-notification
+                    // This ensures MyFirebaseMessagingService handles the notification display
                     $message = CloudMessage::withTarget('token', $sub->endpoint)
-                        ->withNotification(FirebaseNotification::create(
-                            'Incoming ' . ($callType === 'video_call' ? 'Video' : 'Voice') . ' Call',
-                            'Call from ' . $callerName
-                        ))
                         ->withData([
                             'type' => $callType,
                             'callerId' => $callerId,
                             'callerName' => $callerName,
                             'callId' => $callId,
                             'high_priority' => 'true',
-                            'content_available' => 'true'
+                            'content_available' => 'true',
+                            'title' => ($callType === 'video_call' ? 'Video Call' : 'Voice Call'),
+                            'body' => $callerName
                         ])
-                        ->withHighPriority(); // Ensure the notification is delivered immediately
+                        ->withAndroidConfig([
+                            'priority' => 'high',
+                            'data' => [
+                                'type' => $callType,
+                                'callerId' => $callerId,
+                                'callerName' => $callerName,
+                                'callId' => $callId
+                            ]
+                        ]);
 
                     $firebase->send($message);
                     $sentCount++;
@@ -417,6 +424,102 @@ class PushNotificationController extends Controller
                 'line' => $e->getLine()
             ]);
             
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send a call notification to ALL FCM devices (simplified version)
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendCallNotificationToAll(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'phone_number' => 'required|string',
+            'call_type' => 'required|in:call,video_call',
+            'caller_name' => 'required|string',
+            'caller_id' => 'required|string',
+            'call_id' => 'string|nullable',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $phoneNumber = $request->phone_number;
+            $callType = $request->call_type;
+            $callerName = $request->caller_name;
+            $callerId = $request->caller_id;
+            $callId = $request->call_id ?? uniqid('call-');
+
+            // Find ALL FCM tokens (not user-specific)
+            $subscriptions = PushSubscription::where('content_encoding', 'fcm')->get();
+
+            if ($subscriptions->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No FCM tokens found for call notification'
+                ], 404);
+            }
+
+            $firebase = (new Factory)
+                ->withServiceAccount(base_path('firebase-credentials.json'))
+                ->createMessaging();
+
+            $sentCount = 0;
+            $failedCount = 0;
+
+            foreach ($subscriptions as $sub) {
+                try {
+                    $message = CloudMessage::withTarget('token', $sub->endpoint)
+                        ->withData([
+                            'type' => $callType,
+                            'callerId' => $callerId,
+                            'callerName' => $callerName,
+                            'phoneNumber' => $phoneNumber,
+                            'callId' => $callId,
+                            'high_priority' => 'true',
+                            'content_available' => 'true'
+                        ])
+                        ->withAndroidConfig([
+                            'priority' => 'high',
+                            'data' => [
+                                'type' => $callType,
+                                'callerId' => $callerId,
+                                'callerName' => $callerName,
+                                'phoneNumber' => $phoneNumber,
+                                'callId' => $callId
+                            ]
+                        ]);
+
+                    $firebase->send($message);
+                    $sentCount++;
+                } catch (Exception $e) {
+                    $failedCount++;
+                    if (strpos($e->getMessage(), 'registration-token-not-registered') !== false) {
+                        PushSubscription::where('endpoint', $sub->endpoint)->delete();
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => $sentCount > 0,
+                'call_id' => $callId,
+                'sent_count' => $sentCount,
+                'failed_count' => $failedCount,
+                'message' => "Call notification: $sentCount sent, $failedCount failed"
+            ]);
+
+        } catch (Exception $e) {
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()

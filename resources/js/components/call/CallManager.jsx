@@ -1,5 +1,4 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { FCM } from '@capacitor-community/fcm';
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -73,9 +72,6 @@ export const CallProvider = ({ children }) => {
             }
           }
           
-          // Request permissions for local notifications
-          await LocalNotifications.requestPermissions();
-          
           // Listen for incoming push notifications (calls)
           PushNotifications.addListener('pushNotificationReceived', (notification) => {
             console.log('Push notification received', notification);
@@ -85,17 +81,6 @@ export const CallProvider = ({ children }) => {
             }
           });
 
-          // Setup notification action handlers
-          LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
-            const { actionId, notification: notificationData } = notification;
-            
-            if (actionId === 'accept') {
-              acceptCall(notificationData.extra);
-            } else if (actionId === 'decline') {
-              declineCall(notificationData.extra);
-            }
-          });
-          
           // Add listener for our custom CallPlugin events
           CallPlugin.addListener('callAction', (data) => {
             console.log('Received callAction event:', data);
@@ -162,7 +147,6 @@ export const CallProvider = ({ children }) => {
       return () => {
         if (Capacitor.isNativePlatform()) {
           PushNotifications.removeAllListeners();
-          LocalNotifications.removeAllListeners();
           CallPlugin.removeAllListeners();
         }
         
@@ -177,7 +161,6 @@ export const CallProvider = ({ children }) => {
     return () => {
       if (Capacitor.isNativePlatform()) {
         PushNotifications.removeAllListeners();
-        LocalNotifications.removeAllListeners();
         CallPlugin.removeAllListeners();
       }
       
@@ -223,49 +206,12 @@ export const CallProvider = ({ children }) => {
   // Show WhatsApp-like call notification
   const showCallNotification = async (callData) => {
     try {
-      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-        // Use our native CallPlugin for Android
-        await CallPlugin.startCall({
-          callerId: callData.callerId || callData.from,
-          callerName: callData.callerName || 'Unknown Caller',
-          callType: callData.callType || 'audio'
-        });
-      } else {
-        // Use local notifications as fallback
-        const callId = callData.callId || Date.now().toString();
-        const callType = callData.callType || 'audio';
-        const callerName = callData.callerName || callData.callerId || 'Unknown';
-        
-        await LocalNotifications.schedule({
-          notifications: [{
-            id: parseInt(callId),
-            title: `Incoming ${callType} Call`,
-            body: `from ${callerName}`,
-            sound: true,
-            ongoing: true,
-            autoCancel: false,
-            actionTypeId: 'CALL_ACTIONS',
-            extra: {
-              callId,
-              callerId: callData.callerId,
-              callerName,
-              callType
-            },
-            actions: [
-              {
-                id: 'accept',
-                title: 'Accept',
-                foreground: true
-              },
-              {
-                id: 'decline',
-                title: 'Decline',
-                foreground: true
-              }
-            ]
-          }]
-        });
-      }
+      // Use our native CallPlugin for call notifications
+      await CallPlugin.startCall({
+        callerId: callData.callerId || callData.from,
+        callerName: callData.callerName || 'Unknown Caller',
+        callType: callData.callType || 'audio'
+      });
     } catch (error) {
       console.error('Error showing call notification:', error);
     }
@@ -282,13 +228,6 @@ export const CallProvider = ({ children }) => {
       isOngoingCall: true,
       callStatus: 'connected'
     }));
-    
-    // Clear notification if using LocalNotifications
-    if (!(Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android')) {
-      if (callData?.callId) {
-        LocalNotifications.cancel({ notifications: [{ id: parseInt(callData.callId) }] });
-      }
-    }
     
     // Notify the server about call acceptance
     axios.post('/api/calls/accept', {
@@ -329,11 +268,6 @@ export const CallProvider = ({ children }) => {
       callId: null,
       callStatus: 'idle'
     });
-    
-    // Clear notification
-    if (callData?.callId) {
-      LocalNotifications.cancel({ notifications: [{ id: parseInt(callData.callId) }] });
-    }
     
     // Notify the server about call rejection
     axios.post('/api/calls/reject', {
@@ -397,11 +331,6 @@ export const CallProvider = ({ children }) => {
       
       // Notify the server about call ending
       await axios.post('/api/calls/end', { callId });
-      
-      // Clear any existing notifications
-      if (callId) {
-        LocalNotifications.cancel({ notifications: [{ id: parseInt(callId) }] });
-      }
       
       return true;
     } catch (error) {

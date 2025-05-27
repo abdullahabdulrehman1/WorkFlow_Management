@@ -107,7 +107,7 @@ public class MainActivity extends BridgeActivity {
     private String getDefaultServerUrl() {
         // Development URLs in order of preference
         String[] devUrls = {
-            "http://192.168.45.226:8000",  // Emulator special IP
+            "http://192.168.45.121:8000",  // Emulator special IP
             "http://10.0.2.2:8000",       // Another emulator address
             "http://localhost:8000"       // Last resort
         };

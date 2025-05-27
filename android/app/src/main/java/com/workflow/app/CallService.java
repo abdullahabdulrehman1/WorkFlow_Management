@@ -88,7 +88,7 @@ public class CallService extends Service {
     }
 
     /**
-     * Handle an incoming call by showing a notification and activity
+     * Handle an incoming call by showing appropriate UI based on app state
      */
     private void handleIncomingCall(Intent intent) {
         // Get call details from intent
@@ -105,6 +105,76 @@ public class CallService extends Service {
         
         // Acquire wake lock to turn on screen
         acquireWakeLock();
+        
+        // ALWAYS show notification first for persistent access
+        showCallNotification(callerId, callerName, callType, callId);
+        
+        // Then check if we should launch the activity
+        boolean isAppInForeground = isAppInForeground();
+        Log.d(TAG, "App is in foreground: " + isAppInForeground + ", launching activity for: " + callerName);
+        
+        if (isAppInForeground) {
+            // App is running - also show CallDecisionActivity
+            launchCallDecisionActivity(callerId, callerName, callType, callId);
+        }
+        
+        // Start ringing in both cases
+        startRinging();
+        
+        // Set a timeout to automatically dismiss the call
+        timeoutHandler.postDelayed(this::timeoutCall, AUTO_DISMISS_TIMEOUT);
+    }
+    
+    /**
+     * Check if the app is currently in foreground
+     */
+    private boolean isAppInForeground() {
+        android.app.ActivityManager activityManager = 
+            (android.app.ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) return false;
+        
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes = 
+            activityManager.getRunningAppProcesses();
+        
+        if (processes == null) return false;
+        
+        String packageName = getPackageName();
+        for (android.app.ActivityManager.RunningAppProcessInfo process : processes) {
+            if (process.processName.equals(packageName)) {
+                return process.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Launch CallDecisionActivity for foreground calls
+     */
+    private void launchCallDecisionActivity(String callerId, String callerName, String callType, String callId) {
+        Log.d(TAG, "Launching CallDecisionActivity for foreground call from: " + callerName);
+        
+        // Add a small delay to ensure notification is shown first
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Intent launchIntent = new Intent(CallService.this, CallDecisionActivity.class);
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
+                                   Intent.FLAG_ACTIVITY_CLEAR_TOP | 
+                                   Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                launchIntent.putExtra("callerId", callerId);
+                launchIntent.putExtra("callerName", callerName);
+                launchIntent.putExtra("callType", callType);
+                launchIntent.putExtra("callId", callId);
+                startActivity(launchIntent);
+            }
+        }, 300);
+    }
+    
+    /**
+     * Show persistent notification for all calls
+     */
+    private void showCallNotification(String callerId, String callerName, String callType, String callId) {
+        Log.d(TAG, "Showing persistent call notification for: " + callerName);
         
         // Create accept and decline actions for notification
         Intent acceptIntent = new Intent(this, CallActionReceiver.class);
@@ -137,10 +207,10 @@ public class CallService extends Service {
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(
             this, 2, fullScreenIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         
-        // Build the notification with high priority
+        // Build the notification with high priority and persistent visibility
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Incoming " + (callType.equals("video") ? "Video" : "Voice") + " Call")
+            .setContentTitle(callType.equals("video") ? "Video Call" : "Voice Call")
             .setContentText(callerName)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -148,35 +218,13 @@ public class CallService extends Service {
             .setOngoing(true)
             .setAutoCancel(false)
             .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setContentIntent(fullScreenPendingIntent) // Tap to open call screen
             .addAction(R.drawable.decline_call_icon, "Decline", declinePendingIntent)
             .addAction(R.drawable.accept_call_icon, "Accept", acceptPendingIntent);
         
         // Start foreground service with the notification
         Notification notification = builder.build();
         startForeground(NOTIFICATION_ID, notification);
-        
-        // Start ringing
-        startRinging();
-        
-        // Set a timeout to automatically dismiss the call
-        timeoutHandler.postDelayed(this::timeoutCall, AUTO_DISMISS_TIMEOUT);
-        
-        // Launch the call screen directly with a small delay to ensure service is fully started
-        mainHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "Launching CallDecisionActivity for call from: " + callerName);
-                Intent launchIntent = new Intent(CallService.this, CallDecisionActivity.class);
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | 
-                                   Intent.FLAG_ACTIVITY_CLEAR_TOP | 
-                                   Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                launchIntent.putExtra("callerId", callerId);
-                launchIntent.putExtra("callerName", callerName);
-                launchIntent.putExtra("callType", callType);
-                launchIntent.putExtra("callId", callId);
-                startActivity(launchIntent);
-            }
-        }, 300);
     }
     
     /**

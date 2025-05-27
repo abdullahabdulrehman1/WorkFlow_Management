@@ -132,12 +132,9 @@ class CallController extends Controller
                     // The endpoint field contains the FCM token
                     Log::info("Sending to token: " . substr($sub->endpoint, 0, 10) . '...');
                     
-                    // Prepare data payload for call
+                    // Send DATA-ONLY message to prevent FCM auto-notification
+                    // This ensures MyFirebaseMessagingService handles the notification display
                     $message = CloudMessage::withTarget('token', $sub->endpoint)
-                        ->withNotification(FirebaseNotification::create(
-                            'Incoming ' . ($callType === 'video_call' ? 'Video' : 'Voice') . ' Call',
-                            'Call from ' . $callerName . ' (' . $phoneNumber . ')'
-                        ))
                         ->withData([
                             'type' => $callType,
                             'callerId' => $callerId,
@@ -146,8 +143,10 @@ class CallController extends Controller
                             'callId' => $callId,
                             'high_priority' => 'true',
                             'content_available' => 'true',
-                            'priority' => 'high'  // Add as data instead of using withHighPriority()
-                        ]);
+                            'title' => ($callType === 'video_call' ? 'Video Call' : 'Voice Call'),
+                            'body' => $callerName
+                        ])
+                        ->withHighPriority();
 
                     $result = $firebase->send($message);
                     $sentCount++;
