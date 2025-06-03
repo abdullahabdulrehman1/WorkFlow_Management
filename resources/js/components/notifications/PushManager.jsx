@@ -66,82 +66,66 @@ export async function subscribeToPush() {
         // Check if running on localhost
         const isLocal = isLocalhost();
         
-        // Register service worker or use mock data for localhost
+        // Register service worker for both localhost and production
+        let swRegistration;
+        try {
+            swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+            await navigator.serviceWorker.ready;
+        } catch (error) {
+            console.error('Error registering service worker:', error);
+            return { success: false, reason: 'sw-registration-failed', error };
+        }
+        
+        // Request permission
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log('Notification permission denied');
+            return { success: false, reason: 'permission-denied' };
+        }
+        
+        // Get VAPID public key from meta tag or environment
+        let vapidPublicKey = document.querySelector('meta[name="vapid-public-key"]')?.content;
+        
+        // If not found in meta tag, use the key from your .env file (for development)
+        if (!vapidPublicKey) {
+            // Use the VAPID key from your .env file
+            vapidPublicKey = 'BJ4hscAYFpqKbCAn00nYk3wFMS_kYWEdnRCFOJyj_gxiKk_L1uryE_uCjHfqotwwYtWCTlYnLYshvSEgj4WOY_A';
+            console.log('Using fallback VAPID key for development');
+        } else {
+            console.log('Using VAPID key from meta tag');
+        }
+        
+        // Unsubscribe from existing subscriptions first
+        const existingSub = await swRegistration.pushManager.getSubscription();
+        if (existingSub) {
+            await existingSub.unsubscribe();
+            console.log('Unsubscribed from previous push subscription');
+        }
+        
         let subscription;
         let subscriptionJson;
         
-        if (isLocal) {
-            console.log('Running on localhost - creating test subscription');
+        try {
+            // Subscribe with real push service for both localhost and production
+            const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+            subscription = await swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: applicationServerKey
+            });
             
-            // Still request notification permission for UX consistency
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                console.log('Notification permission denied');
-                return { success: false, reason: 'permission-denied' };
-            }
+            // Get subscription as JSON
+            subscriptionJson = subscription.toJSON();
             
-            // Create mock subscription data for localhost testing
-            subscription = {
-                endpoint: 'https://localhost-testing-endpoint-' + Date.now(),
-            };
-            
-            subscriptionJson = {
-                keys: {
-                    p256dh: 'mock-public-key-for-testing-' + Math.random().toString(36).substring(2),
-                    auth: 'mock-auth-token-' + Math.random().toString(36).substring(2),
-                }
-            };
-            
-            console.log('Created mock subscription for localhost:', subscription);
-        } else {
-            // For production sites: Register real service worker
-            let swRegistration;
-            try {
-                swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-                await navigator.serviceWorker.ready;
-            } catch (error) {
-                console.error('Error registering service worker:', error);
-                return { success: false, reason: 'sw-registration-failed', error };
-            }
-            
-            // Request permission
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                console.log('Notification permission denied');
-                return { success: false, reason: 'permission-denied' };
-            }
-            
-            // Get VAPID public key
-            const vapidPublicKey = document.querySelector('meta[name="vapid-public-key"]')?.content;
-            if (!vapidPublicKey) {
-                console.error('VAPID public key not found');
-                return { success: false, reason: 'missing-key' };
-            }
-            
-            // Unsubscribe from existing subscriptions first
-            const existingSub = await swRegistration.pushManager.getSubscription();
-            if (existingSub) {
-                await existingSub.unsubscribe();
-                console.log('Unsubscribed from previous push subscription');
-            }
-            
-            try {
-                // Subscribe with real push service
-                const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-                subscription = await swRegistration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: applicationServerKey
-                });
-                
-                // Get subscription as JSON
-                subscriptionJson = subscription.toJSON();
-            } catch (error) {
-                console.error('Error during subscription process:', error);
-                return { success: false, reason: 'subscription-error', error };
-            }
+            console.log('Created real subscription:', {
+                endpoint: subscription.endpoint,
+                keys: subscriptionJson.keys
+            });
+        } catch (error) {
+            console.error('Error during subscription process:', error);
+            return { success: false, reason: 'subscription-error', error };
         }
         
-        // Regardless of environment, send the subscription to the server
+        // Send the subscription to the server
         try {
             console.log('Sending subscription to server:', subscription.endpoint);
             
@@ -149,8 +133,8 @@ export async function subscribeToPush() {
                 endpoint: subscription.endpoint,
                 public_key: subscriptionJson.keys.p256dh,
                 auth_token: subscriptionJson.keys.auth,
-                content_encoding: isLocal ? 'test' : 'aes128gcm',
-                user_id: 1  // Add user_id if your schema requires it
+                content_encoding: 'aes128gcm'
+                // Removed user_id to avoid foreign key constraint issues
             });
             
             if (response.data.success) {
