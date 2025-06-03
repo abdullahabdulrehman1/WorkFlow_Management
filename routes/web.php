@@ -3,6 +3,8 @@ use App\Http\Controllers\ActionController;
 use App\Http\Controllers\PushNotificationController;
 use App\Http\Controllers\TriggerController;
 use App\Http\Controllers\WorkflowController;
+use App\Events\TestBroadcast;
+use App\Events\WorkflowEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -155,6 +157,54 @@ Route::middleware(['api'])->group(function () {
             ]
         ]);
     });
+});
+
+// Workflow broadcast route for device connections
+Route::post('/api/workflow/{workflowId}/broadcast', function (Request $request, $workflowId) {
+    $validated = $request->validate([
+        'message' => 'required|string',
+        'type' => 'required|string|in:connect,disconnect,message',
+        'connectionId' => 'required|string',
+        'browser' => 'nullable|string'
+    ]);
+    
+    // Broadcast the event to all connected devices on this workflow
+    broadcast(new WorkflowEvent(
+        $workflowId,
+        $validated['type'],
+        $validated['message'],
+        $validated['connectionId'],
+        $validated['browser'] ?? null
+    ));
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Event broadcasted successfully'
+    ]);
+});
+
+// Test broadcasting route
+Route::get('/test-broadcast', function () {
+    broadcast(new TestBroadcast('Broadcasting test from Laravel Reverb!'));
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Broadcast event sent successfully!'
+    ]);
+});
+
+// Get reverb status
+Route::get('/reverb-status', function () {
+    return response()->json([
+        'reverb_config' => [
+            'app_id' => config('broadcasting.connections.reverb.app_id'),
+            'host' => config('broadcasting.connections.reverb.options.host'),
+            'port' => config('broadcasting.connections.reverb.options.port'),
+            'scheme' => config('broadcasting.connections.reverb.options.scheme'),
+        ],
+        'broadcast_driver' => config('broadcasting.default'),
+        'timestamp' => now()->toISOString()
+    ]);
 });
 
 // User route with auth middleware

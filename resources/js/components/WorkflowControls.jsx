@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 import { Switch } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import SaveIndicator from './SaveIndicator';
 import useIsMobile from '../hooks/useIsMobile';
-import { PhoneCall, Video, X, Save, ArrowLeft } from 'lucide-react';
+import { PhoneCall, Video, X, Save, ArrowLeft, Users } from 'lucide-react';
 import { subscribeToPush } from '../components/notifications/PushManager';
 import { makeCall, getTestPhoneNumbers } from '../utils/CallService';
+import Echo from 'laravel-echo';
+import axios from 'axios';
 
 export default function WorkflowControls({ 
     workflow, 
@@ -72,9 +74,137 @@ function DesktopWorkflowControls({
     onClearCanvas 
 }) {
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+    const [isDevicesModalOpen, setIsDevicesModalOpen] = useState(false);
+    const [connectedDevices, setConnectedDevices] = useState([]);
     const [selectedNumber, setSelectedNumber] = useState('');
     const [isVideoCall, setIsVideoCall] = useState(false);
     const testNumbers = getTestPhoneNumbers();
+    const connectionId = React.useRef(Math.random().toString(36).substring(7));
+    
+    // Log devices when they change
+    useEffect(() => {
+        console.log('Connected devices updated:', connectedDevices);
+    }, [connectedDevices]);
+
+    // Handle Echo connection and events
+    useEffect(() => {
+        console.log('Initializing Echo connection...');
+        
+        // Add current device to the list immediately
+        const currentDevice = {
+            id: connectionId.current,
+            name: `Device connected from ${navigator.userAgent.split('(')[1]?.split(')')[0] || 'Unknown Browser'}`,
+            browser: navigator.userAgent,
+            isCurrentDevice: true
+        };
+        
+        setConnectedDevices([currentDevice]);
+        console.log('Added current device:', currentDevice);
+        
+        // Subscribe to the public channel
+        const echo = new Echo({
+            broadcaster: 'reverb',
+            key: import.meta.env.VITE_REVERB_APP_KEY,
+            wsHost: window.location.hostname,
+            wsPort: import.meta.env.VITE_REVERB_PORT || 8080,
+            forceTLS: false,
+            enabledTransports: ['ws', 'wss']
+        });
+
+        console.log('Subscribing to channel:', `workflow.${workflow.id}`);
+
+        // Use public channel
+        const channel = echo.channel(`workflow.${workflow.id}`)
+            .listen('WorkflowEvent', (e) => {
+                console.log('Received event:', e);
+                
+                if (e.type === 'connect') {
+                    console.log('Processing connect event for device:', e.connectionId);
+                    // Only show toast and add device if it's not our own connection
+                    if (e.connectionId !== connectionId.current) {
+                        toast.success(`New device connected: ${e.message || 'Anonymous Device'}`);
+                        setConnectedDevices(prev => {
+                            const existingDevice = prev.find(d => d.id === e.connectionId);
+                            if (!existingDevice) {
+                                const newDevice = { 
+                                    id: e.connectionId, 
+                                    name: e.message || 'Anonymous Device',
+                                    browser: e.browser || navigator.userAgent,
+                                    isCurrentDevice: false
+                                };
+                                console.log('Adding new device:', newDevice);
+                                const updated = [...prev, newDevice];
+                                console.log('Updated devices list:', updated);
+                                return updated;
+                            }
+                            return prev;
+                        });
+                    }
+                } else if (e.type === 'disconnect') {
+                    console.log('Processing disconnect event for device:', e.connectionId);
+                    // Only show toast and remove device if it's not our own disconnection
+                    if (e.connectionId !== connectionId.current) {
+                        toast.error(`Device disconnected: ${e.message || 'Anonymous Device'}`);
+                        setConnectedDevices(prev => {
+                            const updatedDevices = prev.filter(d => d.id !== e.connectionId);
+                            console.log('Devices after disconnect:', updatedDevices);
+                            return updatedDevices;
+                        });
+                    }
+                } else if (e.type === 'message') {
+                    // Show broadcast messages
+                    toast(e.message, {
+                        icon: '📢',
+                        duration: 4000,
+                    });
+                }
+            });
+
+        // Send connect event with a delay to ensure connection is established
+        const timeoutId = setTimeout(() => {
+            console.log('Sending initial connect event...');
+            axios.post(`/api/workflow/${workflow.id}/broadcast`, {
+                message: `Device connected from ${navigator.userAgent.split('(')[1]?.split(')')[0] || 'Unknown Browser'}`,
+                type: 'connect',
+                connectionId: connectionId.current,
+                browser: navigator.userAgent
+            }).then(() => {
+                console.log('Connect event sent successfully');
+            }).catch(error => {
+                console.error('Error sending connect event:', error);
+            });
+        }, 1000);
+
+        // Log connection status
+        echo.connector.pusher.connection.bind('connected', () => {
+            console.log('Connected to Reverb server');
+            console.log('Current connection ID:', connectionId.current);
+            toast.success('Connected to real-time server');
+        });
+
+        echo.connector.pusher.connection.bind('error', (error) => {
+            console.error('Connection error:', error);
+            toast.error('Connection error: ' + error.message);
+        });
+
+        return () => {
+            clearTimeout(timeoutId);
+            
+            // Send disconnect event
+            console.log('Sending disconnect event...');
+            axios.post(`/api/workflow/${workflow.id}/broadcast`, {
+                message: `Device disconnected from ${navigator.userAgent.split('(')[1]?.split(')')[0] || 'Unknown Browser'}`,
+                type: 'disconnect',
+                connectionId: connectionId.current
+            }).then(() => {
+                console.log('Disconnect event sent successfully');
+            }).catch(error => {
+                console.error('Error sending disconnect event:', error);
+            });
+            console.log('Cleaning up Echo connection...');
+            channel.unsubscribe();
+        };
+    }, [workflow.id]);
     
     const handleCallTest = () => {
         setIsCallModalOpen(true);
@@ -95,6 +225,20 @@ function DesktopWorkflowControls({
         } catch (error) {
             console.error('Call error:', error);
             toast.error('Call failed: ' + error.message);
+        }
+    };
+    
+    const testBroadcast = async () => {
+        try {
+            await axios.post(`/api/workflow/${workflow.id}/broadcast`, {
+                message: `Test broadcast from ${navigator.userAgent.split('(')[1]?.split(')')[0] || 'Unknown Browser'}`,
+                type: 'message',
+                connectionId: connectionId.current
+            });
+            toast.success('Broadcast sent!');
+        } catch (error) {
+            console.error('Broadcast error:', error);
+            toast.error('Failed to broadcast');
         }
     };
     
@@ -139,6 +283,13 @@ function DesktopWorkflowControls({
                 )}
             </div>
             <div className='flex gap-2'>
+                <button 
+                    className='flex items-center gap-1 border border-purple-300 bg-purple-50 text-purple-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-purple-100'
+                    onClick={() => setIsDevicesModalOpen(true)}
+                >
+                    <Users className="w-4 h-4" />
+                    <span>Connected ({connectedDevices.length})</span>
+                </button>
                 <div className='relative'>
                     <button 
                         className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-100'
@@ -210,6 +361,13 @@ function DesktopWorkflowControls({
                 </div>
                 
                 <button 
+                    className='flex items-center gap-1 border border-green-300 bg-green-50 text-green-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-green-100'
+                    onClick={testBroadcast}
+                >
+                    Test Broadcast
+                </button>
+                
+                <button 
                     className='border px-4 py-1 rounded-full text-sm font-medium'
                     onClick={() => router.visit('/workflows')}
                 >
@@ -222,6 +380,43 @@ function DesktopWorkflowControls({
                     Save workflow
                 </button>
             </div>
+
+            {/* Connected Devices Modal */}
+            {isDevicesModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-25 z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-lg shadow-lg p-6 w-96">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-medium text-lg">Connected Devices</h3>
+                            <button 
+                                onClick={() => setIsDevicesModalOpen(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            {connectedDevices.length === 0 ? (
+                                <p className="text-gray-500 text-center py-4">No devices connected</p>
+                            ) : (
+                                connectedDevices.map((device) => (
+                                    <div 
+                                        key={device.id}
+                                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                                    >
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <div className="flex-1">
+                                            <p className="font-medium">{device.name}</p>
+                                            <p className="text-sm text-gray-500 truncate">{device.browser}</p>
+                                            <p className="text-xs text-gray-400">ID: {device.id}</p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -236,9 +431,37 @@ function MobileWorkflowControls({
     onClearCanvas 
 }) {
     const [isCallBottomSheetOpen, setIsCallBottomSheetOpen] = useState(false);
+    const [isDevicesBottomSheetOpen, setIsDevicesBottomSheetOpen] = useState(false);
+    const [connectedDevices, setConnectedDevices] = useState([]);
     const [selectedNumber, setSelectedNumber] = useState('');
     const [isVideoCall, setIsVideoCall] = useState(false);
     const testNumbers = getTestPhoneNumbers();
+    
+    useEffect(() => {
+        // Subscribe to the public channel
+        const echo = new Echo({
+            broadcaster: 'reverb',
+            key: import.meta.env.VITE_REVERB_APP_KEY,
+            wsHost: window.location.hostname,
+            wsPort: 8080,
+            forceTLS: false,
+            enabledTransports: ['ws'],
+            disableStats: true,
+            cluster: 'mt1',
+            encrypted: false
+        });
+
+        // Use public channel instead of presence channel
+        const channel = echo.channel(`workflow.${workflow.id}`)
+            .listen('WorkflowEvent', (e) => {
+                console.log('Received event:', e);
+                // Handle the event here
+            });
+
+        return () => {
+            channel.unsubscribe();
+        };
+    }, [workflow.id]);
     
     const handleCallTest = () => {
         setIsCallBottomSheetOpen(true);
@@ -289,108 +512,58 @@ function MobileWorkflowControls({
                         <span
                             className={`${
                                 isDraftOpen
-                                    ? 'translate-x-5'
+                                    ? 'translate-x-6'
                                     : 'translate-x-1'
-                            } inline-block h-3 w-3 transform rounded-full bg-white transition`}
+                            } inline-block h-4 w-4 transform rounded-full bg-white transition`}
                         />
                     </Switch>
-                    <span className='text-xs font-medium'>
+                    <span className='text-sm font-medium'>
                         {isDraftOpen ? 'Published' : 'Draft'}
                     </span>
                 </div>
                 <div className='flex items-center gap-2'>
                     <button 
-                        className='flex items-center justify-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full text-xs font-medium active:bg-blue-100'
-                        onClick={handleCallTest}
-                        aria-label="Make Call"
+                        className='text-red-500 border border-red-300 px-4 py-1 rounded-full text-sm font-medium hover:bg-red-50'
+                        onClick={onClearCanvas}
                     >
-                        <PhoneCall className="w-3 h-3" />
-                        <span className="hidden xs:inline">Call</span>
+                        Clear canvas
                     </button>
                     <button 
-                        className='flex items-center justify-center gap-1 text-red-500 border border-red-300 px-2.5 py-1 rounded-full text-xs font-medium active:bg-red-100'
-                        onClick={onClearCanvas}
-                        aria-label="Clear Canvas"
+                        className='border px-4 py-1 rounded-full text-sm font-medium'
+                        onClick={() => router.visit('/workflows')}
                     >
-                        <X className="w-3 h-3" />
-                        <span className="hidden xs:inline">Clear</span>
+                        Cancel
+                    </button>
+                    <button 
+                        className='bg-yellow-400 text-black px-4 py-1 rounded-full text-sm font-semibold shadow'
+                        onClick={onSave}
+                    >
+                        Save workflow
                     </button>
                 </div>
             </div>
             
-            {/* Bottom section with save and cancel buttons */}
-            <div className='flex justify-between gap-2 mt-3'>
-                <button 
-                    className='flex-1 border border-gray-300 px-2 py-1.5 rounded-full text-xs font-medium active:bg-gray-100 flex items-center justify-center gap-1'
-                    onClick={() => router.visit('/workflows')}
-                >
-                    <ArrowLeft className="w-3 h-3" />
-                    <span>Cancel</span>
-                </button>
-                <button 
-                    className='flex-1 bg-yellow-400 text-black px-2 py-1.5 rounded-full text-xs font-semibold shadow active:bg-yellow-500 active:shadow-inner flex items-center justify-center gap-1'
-                    onClick={onSave}
-                >
-                    <Save className="w-3 h-3" />
-                    <span>Save</span>
-                </button>
-            </div>
-            
-            {/* Mobile Call Bottom Sheet */}
-            {isCallBottomSheetOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-25 z-50 flex flex-col justify-end">
-                    <div className="bg-white rounded-t-xl p-4 animate-slide-up">
-                        <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
-                        
-                        <h3 className="font-medium text-lg mb-4 text-center">Make a Call</h3>
-                        
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium mb-2">Contact</label>
-                            <select 
-                                className="w-full border border-gray-300 rounded-lg p-3 text-base"
-                                value={selectedNumber}
-                                onChange={(e) => setSelectedNumber(e.target.value)}
-                            >
-                                {testNumbers.map((item, index) => (
-                                    <option key={index} value={item.number}>
-                                        {item.name}: {item.number}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        
-                        <div className="flex items-center justify-center mb-5">
-                            <input 
-                                type="checkbox" 
-                                id="mobileVideoCall" 
-                                checked={isVideoCall}
-                                onChange={() => setIsVideoCall(!isVideoCall)}
-                                className="mr-2 h-5 w-5"
-                            />
-                            <label htmlFor="mobileVideoCall" className="text-base">Video Call</label>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3 mb-1">
-                            <button
-                                className="bg-gray-100 text-gray-800 py-3 rounded-xl text-base font-medium active:bg-gray-200"
-                                onClick={() => setIsCallBottomSheetOpen(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className={`${isVideoCall ? 'bg-purple-500' : 'bg-green-500'} text-white py-3 rounded-xl text-base font-medium active:opacity-90 flex items-center justify-center gap-2`}
-                                onClick={initiateCall}
-                            >
-                                {isVideoCall ? (
-                                    <><Video className="w-5 h-5" /> Video</>
-                                ) : (
-                                    <><PhoneCall className="w-5 h-5" /> Call</>
-                                )}
-                            </button>
-                        </div>
-                    </div>
+            {/* Bottom section with call and test broadcast buttons */}
+            <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                    <button 
+                        className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-100'
+                        onClick={handleCallTest}
+                    >
+                        <PhoneCall className="w-4 h-4" />
+                        <span>Call</span>
+                    </button>
+                    
+                    <button 
+                        className='flex items-center gap-1 border border-green-300 bg-green-50 text-green-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-green-100'
+                        onClick={() => {
+                            // Implement test broadcast functionality
+                        }}
+                    >
+                        Test Broadcast
+                    </button>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
