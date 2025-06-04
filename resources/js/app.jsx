@@ -6,7 +6,10 @@ import { Toaster } from 'react-hot-toast';
 import React from 'react';
 import { registerSW } from 'virtual:pwa-register';
 import PushManager from './components/notifications/PushManager';
+import NotificationListener from './components/notifications/NotificationListener';
 import { CallManager, CallProvider } from './components/call/CallManager';
+
+const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 // Standard service worker registration for push notifications
 if ('serviceWorker' in navigator) {
@@ -32,17 +35,19 @@ const updateSW = registerSW({
 });
 
 createInertiaApp({
+    title: (title) => `${title} - ${appName}`,
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.jsx`,
-            import.meta.glob('./Pages/**/*.jsx')
+            import.meta.glob('./Pages/**/*.jsx'),
         ),
     setup({ el, App, props }) {
         createRoot(el).render(
             <CallProvider>
                 <App {...props} />
-                <PushManager /> {/* Push notification manager */}
-                <CallManager /> {/* Call notification manager */}
+                <PushManager />
+                <NotificationListener userId={props.initialPage.props.auth?.user?.id} />
+                <CallManager />
                 <Toaster 
                     position="top-center" 
                     gutter={12}
@@ -56,5 +61,8 @@ createInertiaApp({
                 />
             </CallProvider>
         );
+    },
+    progress: {
+        color: '#4B5563',
     },
 });

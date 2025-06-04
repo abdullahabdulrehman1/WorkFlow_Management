@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverb Debug Tool</title>
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+</head>
+<body>
+    <h1>Reverb WebSocket Debug Tool</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+    <button onclick="sendTestMessage()">Send Test Message</button>
+
+    <script>
+        const logs = document.getElementById('logs');
+        const status = document.getElementById('status');
+        
+        function log(message) {
+            console.log(message);
+            logs.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+
+        // Initialize Pusher client directly (what Echo uses under the hood)
+        const pusher = new Pusher('y7fe6or6w7qhknmk5seg', {
+            wsHost: window.location.hostname,
+            wsPort: 8080,
+            forceTLS: false,
+            enabledTransports: ['ws', 'wss'],
+            cluster: 'mt1'
+        });
+
+        pusher.connection.bind('connected', () => {
+            log('✅ Connected to Reverb server');
+            status.textContent = 'Connected';
+        });
+
+        pusher.connection.bind('error', (error) => {
+            log('❌ Connection error: ' + JSON.stringify(error));
+            status.textContent = 'Error';
+        });
+
+        pusher.connection.bind('disconnected', () => {
+            log('📡 Disconnected from Reverb server');
+            status.textContent = 'Disconnected';
+        });
+
+        // Subscribe to workflow channel
+        const channel = pusher.subscribe('workflow.2');
+        
+        channel.bind('pusher:subscription_succeeded', () => {
+            log('📡 Successfully subscribed to workflow.2 channel');
+        });
+
+        channel.bind('pusher:subscription_error', (error) => {
+            log('❌ Subscription error: ' + JSON.stringify(error));
+        });
+
+        // Listen for WorkflowEvent
+        channel.bind('WorkflowEvent', (data) => {
+            log('📨 Received WorkflowEvent: ' + JSON.stringify(data));
+        });
+
+        // Listen for all events on the channel
+        channel.bind_global((eventName, data) => {
+            log('🔔 Global event received - Name: ' + eventName + ', Data: ' + JSON.stringify(data));
+        });
+
+        function sendTestMessage() {
+            fetch('/api/workflow/2/device/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: 'Test from debug tool',
+                    deviceName: 'Debug Tool',
+                    connectionId: 'debug-' + Math.random().toString(36).substring(7),
+                    type: 'info'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                log('📤 Sent test message: ' + JSON.stringify(data));
+            })
+            .catch(error => {
+                log('❌ Error sending message: ' + error);
+            });
+        }
+    </script>
+</body>
+</html>
