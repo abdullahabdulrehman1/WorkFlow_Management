@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import Echo from 'laravel-echo';
 import axios from 'axios';
 import desktopCallService from '../../services/DesktopCallService';
+import { WindowsNotificationUtil } from '../../utils/WindowsNotification';
 
 // Custom hook for managing Reverb real-time connections
 export const useWorkflowRealtime = (workflowId) => {
@@ -279,16 +280,24 @@ export const useWorkflowRealtime = (workflowId) => {
     const handleIncomingDesktopCall = async (callEvent) => {
         console.log('📞 Handling incoming desktop call:', callEvent);
         
-        // Show notification toast
-        toast.success(`📞 Incoming desktop call from ${callEvent.callerName}`, {
-            duration: 10000,
-            position: 'top-center',
-            style: {
-                background: '#10b981',
-                color: 'white',
-                fontSize: '16px',
-            },
-        });
+        // Use Windows notification utility for calls
+        const notificationShown = await WindowsNotificationUtil.showIncomingCall(
+            callEvent.callerName, 
+            callEvent.callType || 'voice'
+        );
+        
+        // Fallback to toast if Windows notification failed
+        if (!notificationShown) {
+            toast.success(`📞 Incoming desktop call from ${callEvent.callerName}`, {
+                duration: 10000,
+                position: 'top-center',
+                style: {
+                    background: '#10b981',
+                    color: 'white',
+                    fontSize: '16px',
+                },
+            });
+        }
 
         // Open native call window if in Electron
         if (desktopCallService.isElectronApp()) {

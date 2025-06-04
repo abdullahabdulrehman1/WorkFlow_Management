@@ -27,6 +27,10 @@ class MainWindowManager {
       defaultHeight: 800
     });
 
+    // Get absolute path to preload script
+    const preloadPath = path.resolve(__dirname, '../../preload.js');
+    console.log('🔧 Preload script path:', preloadPath);
+
     // Create the browser window
     this.window = new BrowserWindow({
       x: windowState.x,
@@ -39,7 +43,7 @@ class MainWindowManager {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, '../preload.js'),
+        preload: preloadPath, // Use absolute path
         webSecurity: false
       },
       icon: path.join(__dirname, '../../public/icons/windows11/Square44x44Logo.targetsize-256.png'),

@@ -11,6 +11,7 @@ import useWorkflow from '../hooks/useWorkflow'
 import useWorkflowCanvas from '../hooks/useWorkflowCanvas'
 import useIsMobile from '../hooks/useIsMobile'
 import axios from 'axios'
+import { WindowsNotificationUtil } from '../utils/WindowsNotification'
 
 export default function CreateNewWorkflow() {
     // Get csrf token from Inertia
@@ -47,43 +48,6 @@ export default function CreateNewWorkflow() {
         }
     }, [workflow]);
     
-    // Function to show desktop notifications
-    const showDesktopNotification = (title, body) => {
-        if (!("Notification" in window)) {
-            console.log("This browser does not support desktop notifications");
-            return false;
-        }
-        
-        if (Notification.permission === "granted") {
-            try {
-                const notification = new Notification(title, {
-                    body: body,
-                    icon: '/logo.png',
-                    tag: 'workflow-notification-' + Date.now(),
-                    requireInteraction: true,
-                    silent: false
-                });
-                notification.onclick = function() {
-                    window.focus();
-                    this.close();
-                };
-                return true;
-            } catch (error) {
-                console.error("Error showing notification:", error);
-                return false;
-            }
-        } else if (Notification.permission !== "denied") {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                    showDesktopNotification(title, body);
-                    return true;
-                }
-            });
-        }
-        
-        return false;
-    };
-    
     // Handle save workflow
     const handleSave = async () => {
         if (!canvasRef.current) return;
@@ -105,42 +69,13 @@ export default function CreateNewWorkflow() {
             // Save canvas data
             await saveCanvas(result.workflowId || workflowId, canvasData);
             
-            const notificationTitle = 'Workflow Saved';
-            const notificationBody = `Your workflow "${workflow?.name || 'New workflow'}" has been saved successfully!`;
+            // Use the new Windows notification utility
+            const workflowName = workflow?.name || 'New workflow';
+            const notificationShown = await WindowsNotificationUtil.showWorkflowSaved(workflowName);
             
-            let notificationShown = false;
-            
-            // Try to send push notification via server first
-            try {
-                const response = await axios.post('/api/push-notify', {
-                    title: notificationTitle,
-                    body: notificationBody,
-                    url: window.location.href
-                }, {
-                    headers: {
-                        'X-CSRF-TOKEN': csrf_token
-                    }
-                });
-                
-                console.log('Push notification response:', response.data);
-                
-                // If server-side push was successful
-                if (response.data && response.data.sent) {
-                    notificationShown = true;
-                    console.log('Server-side push notification sent successfully');
-                } 
-                // If server indicates we should use fallback or push failed
-                else if (response.data && response.data.fallbackEnabled) {
-                    console.log('Server recommended using fallback notification');
-                    notificationShown = showDesktopNotification(notificationTitle, notificationBody);
-                }
-            } catch (error) {
-                console.error('Error with push notification:', error);
-            }
-            
-            // Show toast notification if neither method worked
+            // Fallback to toast if Windows notification failed
             if (!notificationShown) {
-                toast.success(`${notificationTitle}: ${notificationBody}`);
+                toast.success(`✅ Workflow "${workflowName}" saved successfully!`);
             }
         }
     };

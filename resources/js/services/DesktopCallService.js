@@ -30,6 +30,38 @@ class DesktopCallService {
         return null;
     }
 
+    // Show simple Windows notification - simplified version
+    async showSimpleNotification(title, body) {
+        if (!this.isElectronApp()) {
+            console.log('Not in Electron app, using web toast notification');
+            toast.success(`${title}: ${body}`, {
+                duration: 10000,
+                position: 'top-center',
+            });
+            return false;
+        }
+
+        try {
+            console.log('📢 Showing simple Windows notification:', { title, body });
+            const result = await window.electron.notifications.showSimple(title, body);
+            
+            if (result.success) {
+                console.log('✅ Windows notification shown successfully');
+                return true;
+            } else {
+                console.error('❌ Failed to show Windows notification:', result.error);
+                // Fallback to toast
+                toast.error('Failed to show notification: ' + result.error);
+                return false;
+            }
+        } catch (error) {
+            console.error('❌ Error showing Windows notification:', error);
+            // Fallback to toast
+            toast.error('Error showing notification: ' + error.message);
+            return false;
+        }
+    }
+
     // Show native Windows notification for incoming call
     async showNativeCallNotification(callData) {
         if (!this.isElectronApp()) {
@@ -43,24 +75,13 @@ class DesktopCallService {
 
         try {
             console.log('📢 Showing native Windows notification for call:', callData);
-            const result = await window.electron.notifications.handleIncomingCall({
-                callId: callData.callId,
-                isVideoCall: callData.callType === 'video',
-                contactName: callData.callerName,
-                callerId: callData.callerId,
-                callerName: callData.callerName,
-                workflowId: callData.workflowId
-            });
             
-            if (result.success) {
-                console.log('✅ Native notification shown successfully');
-                return true;
-            } else {
-                console.error('❌ Failed to show native notification:', result.error);
-                // Fallback to toast
-                toast.error('Failed to show native notification: ' + result.error);
-                return false;
-            }
+            // Use simple notification for calls
+            const title = callData.callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call';
+            const body = `${callData.callerName} is calling you...`;
+            
+            const result = await this.showSimpleNotification(title, body);
+            return result;
         } catch (error) {
             console.error('❌ Error showing native notification:', error);
             // Fallback to toast

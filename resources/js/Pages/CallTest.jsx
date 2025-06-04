@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import WorkflowLayout from '../components/layout/WorkflowLayout';
 import useIsMobile from '../hooks/useIsMobile';
 import { Capacitor } from '@capacitor/core';
+import NotificationTest from '../components/NotificationTest';
 
 // Improved detection of native environment
 const isNativeEnvironment = () => {
@@ -259,6 +260,11 @@ const CallTest = () => {
     <WorkflowLayout breadcrumbText="Call Testing">
       <div className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-blue-700 mb-6">Call Testing Interface</h2>
+        
+        {/* Add Windows Notification Test */}
+        <div className="mb-6">
+          <NotificationTest />
+        </div>
         
         <div className="space-y-4">
           <div>

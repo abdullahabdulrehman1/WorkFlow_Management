@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -18,10 +18,13 @@ let callWindowManager;
 let notificationService;
 let ipcHandler;
 
-// Set Windows-specific settings
+// Set Windows-specific settings for better notifications
 if (process.platform === 'win32') {
   // Set app user model ID for Windows notifications
   app.setAppUserModelId('com.workflow.management.desktop');
+  
+  // Enable Windows 10/11 toast notifications
+  app.setAppUserModelId('Workflow Management');
 }
 
 // Create main window function
@@ -38,79 +41,11 @@ const createWindow = async () => {
     // Create the main window
     await mainWindowManager.create();
     
-    // Set up IPC handlers
-    setupIPCHandlers();
-    
-    // Test notification after window is created
-    setTimeout(async () => {
-      try {
-        console.log('📢 Testing notification...');
-        const result = await notificationService.showCallNotification({
-          callId: 'test-call',
-          isVideoCall: false,
-          contactName: 'Test User',
-          callerId: '123',
-          callerName: 'Test User'
-        });
-        console.log('📢 Notification test result:', result);
-      } catch (error) {
-        console.error('❌ Error testing notification:', error);
-      }
-    }, 3000);
+    console.log('✅ Electron app initialized successfully');
   } catch (error) {
     console.error('❌ Error creating window:', error);
   }
 };
-
-// Set up IPC handlers
-function setupIPCHandlers() {
-  // Handle incoming call notification
-  ipcMain.handle('notification:incoming-call', async (event, callData) => {
-    try {
-      console.log('📢 Received incoming call notification request:', callData);
-      const result = await notificationService.showCallNotification(callData);
-      return { success: result };
-    } catch (error) {
-      console.error('❌ Error handling incoming call notification:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Handle opening call window
-  ipcMain.handle('call:open-window', async (event, callData) => {
-    try {
-      console.log('📞 Opening call window:', callData);
-      await callWindowManager.create(callData);
-      return { success: true };
-    } catch (error) {
-      console.error('❌ Error opening call window:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Handle closing call window
-  ipcMain.handle('call:close-window', async () => {
-    try {
-      console.log('📞 Closing call window');
-      callWindowManager.close();
-      return { success: true };
-    } catch (error) {
-      console.error('❌ Error closing call window:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  // Handle getting call window status
-  ipcMain.handle('call:get-status', async () => {
-    try {
-      const status = callWindowManager.getStatus();
-      return { success: true, ...status };
-    } catch (error) {
-      console.error('❌ Error getting call window status:', error);
-      return { success: false, error: error.message };
-    }
-  });
-}
 
 // When Electron has finished initialization, create the window
 app.whenReady().then(createWindow);

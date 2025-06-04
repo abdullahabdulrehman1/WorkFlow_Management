@@ -8,6 +8,7 @@ import { registerSW } from 'virtual:pwa-register';
 import PushManager from './components/notifications/PushManager';
 import NotificationListener from './components/notifications/NotificationListener';
 import { CallManager, CallProvider } from './components/call/CallManager';
+import { WindowsNotificationUtil } from './utils/WindowsNotification';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -33,6 +34,21 @@ const updateSW = registerSW({
         // You could show a UI notification here that the app is ready for offline use
     }
 });
+
+// Debug: Check if we're in Electron immediately
+console.log('🔍 Immediate Electron check:', typeof window !== 'undefined' ? !!window.electron : false);
+console.log('🔍 Window object keys:', typeof window !== 'undefined' ? Object.keys(window).filter(key => key.includes('electron') || key.includes('Electron')) : 'No window');
+
+// Wait a bit and check again in case preload script loads later
+setTimeout(() => {
+    console.log('🔍 Delayed Electron check:', typeof window !== 'undefined' ? !!window.electron : false);
+    if (typeof window !== 'undefined' && window.electron) {
+        console.log('✅ ELECTRON DETECTED AFTER DELAY');
+        console.log('🔧 Available APIs:', Object.keys(window.electron));
+    } else {
+        console.log('❌ STILL NO ELECTRON AFTER DELAY');
+    }
+}, 1000);
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

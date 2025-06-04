@@ -82,6 +82,22 @@ class IPCHandler {
       }
     });
 
+    // Simple notification handler - needed for compatibility
+    ipcMain.handle('show-simple-notification', async (event, data) => {
+      try {
+        console.log('📢 Showing simple notification:', data);
+        const success = await this.notificationService.showToastNotification(
+          data.title || 'Notification',
+          data.body || '',
+          data
+        );
+        return { success };
+      } catch (error) {
+        console.error('❌ Error showing simple notification:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
     // Close specific notification
     ipcMain.handle('close-notification', async (event, callId) => {
       try {
