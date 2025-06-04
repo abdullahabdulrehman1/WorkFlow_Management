@@ -5,6 +5,7 @@ use App\Http\Controllers\TriggerController;
 use App\Http\Controllers\WorkflowController;
 use App\Events\TestBroadcast;
 use App\Events\WorkflowEvent;
+use App\Events\DesktopCallEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -210,4 +211,43 @@ Route::get('/reverb-status', function () {
 // User route with auth middleware
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
+});
+
+// New fallback route to handle Electron app routing
+Route::get('/call', function (Request $request) {
+    // This route serves the call screen for Electron
+    return view('call', [
+        'callData' => $request->all()
+    ]);
+});
+
+// Desktop call route
+Route::post('/api/workflow/{workflowId}/desktop-call', function (Request $request, $workflowId) {
+    $validated = $request->validate([
+        'targetDevices' => 'required|string',
+        'callerName' => 'required|string|max:255',
+        'callType' => 'required|string|in:voice,video',
+        'callId' => 'required|string|max:100',
+        'timestamp' => 'required|string'
+    ]);
+    
+    // Broadcast the desktop call event to all connected devices on this workflow
+    broadcast(new DesktopCallEvent(
+        $workflowId,
+        $validated,
+        $request->header('X-Connection-Id', 'unknown'),
+        $validated['callerName']
+    ));
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Desktop call broadcasted successfully',
+        'data' => [
+            'workflowId' => $workflowId,
+            'callId' => $validated['callId'],
+            'callType' => $validated['callType'],
+            'callerName' => $validated['callerName'],
+            'timestamp' => $validated['timestamp'],
+        ]
+    ]);
 });

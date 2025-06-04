@@ -22,6 +22,42 @@ contextBridge.exposeInMainWorld('electron', {
     // Request permission
     requestPermission: async () => {
       return await Notification.requestPermission();
+    },
+    // Show native notification for incoming calls
+    showCallNotification: async (callData) => {
+      return await ipcRenderer.invoke('show-native-notification', callData);
+    },
+    // Show toast notification
+    showToast: async (title, body, options = {}) => {
+      return await ipcRenderer.invoke('show-toast-notification', title, body, options);
+    },
+    // Handle incoming call (native notification + window)
+    handleIncomingCall: (callData) => {
+      return ipcRenderer.invoke('notification:incoming-call', callData);
+    },
+    // Clear notification badge
+    clearBadge: async () => {
+      return await ipcRenderer.invoke('clear-notification-badge');
+    },
+    // Close specific notification
+    closeNotification: async (callId) => {
+      return await ipcRenderer.invoke('close-notification', callId);
+    }
+  },
+  
+  // Call window management
+  call: {
+    // Open a new call window
+    openWindow: (callData) => {
+      return ipcRenderer.invoke('call:open-window', callData);
+    },
+    // Close the call window
+    closeWindow: () => {
+      return ipcRenderer.invoke('call:close-window');
+    },
+    // Get call window status
+    getStatus: () => {
+      return ipcRenderer.invoke('call:get-status');
     }
   },
   

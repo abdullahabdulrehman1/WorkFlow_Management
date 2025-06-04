@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Switch } from '@headlessui/react';
-import { PhoneCall, Users, Video, X, ChevronDown } from 'lucide-react';
+import { PhoneCall, Users, Video, X, ChevronDown, Monitor } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
@@ -17,9 +17,11 @@ function DesktopWorkflowControls({
     onClearCanvas 
 }) {
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+    const [isDesktopCallModalOpen, setIsDesktopCallModalOpen] = useState(false);
     const [isDevicesDropdownOpen, setIsDevicesDropdownOpen] = useState(false);
     const [selectedNumber, setSelectedNumber] = useState('');
     const [isVideoCall, setIsVideoCall] = useState(false);
+    const [desktopCallType, setDesktopCallType] = useState('voice');
     const testNumbers = getTestPhoneNumbers();
     const dropdownRef = useRef(null);
     
@@ -28,7 +30,8 @@ function DesktopWorkflowControls({
         connectedDevices, 
         isConnected, 
         connectionId, 
-        sendBroadcastMessage 
+        sendBroadcastMessage,
+        startDesktopCall
     } = useWorkflowRealtime(workflow?.id);
     
     // Close dropdown when clicking outside
@@ -48,6 +51,10 @@ function DesktopWorkflowControls({
     const handleCallTest = () => {
         setIsCallModalOpen(true);
     };
+
+    const handleDesktopCall = () => {
+        setIsDesktopCallModalOpen(true);
+    };
     
     const initiateCall = async () => {
         const number = selectedNumber || testNumbers[0].number;
@@ -64,6 +71,18 @@ function DesktopWorkflowControls({
         } catch (error) {
             console.error('Call error:', error);
             toast.error('Call failed: ' + error.message);
+        }
+    };
+
+    const initiateDesktopCall = async () => {
+        try {
+            const success = await startDesktopCall(desktopCallType);
+            if (success) {
+                setIsDesktopCallModalOpen(false);
+            }
+        } catch (error) {
+            console.error('Desktop call error:', error);
+            toast.error('Desktop call failed: ' + error.message);
         }
     };
     
@@ -189,7 +208,91 @@ function DesktopWorkflowControls({
                     )}
                 </div>
 
-                {/* Call Button */}
+                {/* Desktop Calling Button */}
+                <div className='relative'>
+                    <button 
+                        className='flex items-center gap-1 border border-emerald-300 bg-emerald-50 text-emerald-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-emerald-100'
+                        onClick={handleDesktopCall}
+                    >
+                        <Monitor className="w-4 h-4" />
+                        <span>Desktop Calling</span>
+                    </button>
+                    
+                    {/* Desktop Call Modal */}
+                    {isDesktopCallModalOpen && (
+                        <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50 w-80">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="font-medium">Start Desktop Call</h3>
+                                <button 
+                                    onClick={() => setIsDesktopCallModalOpen(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                            
+                            <div className="mb-4">
+                                <p className="text-sm text-gray-600 mb-3">
+                                    This will send a native call notification to all connected devices in this workflow.
+                                </p>
+                                
+                                <div className="mb-3">
+                                    <label className="block text-sm font-medium mb-1">Call Type</label>
+                                    <div className="flex gap-2">
+                                        <button
+                                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-1 ${
+                                                desktopCallType === 'voice' 
+                                                    ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                                                    : 'bg-gray-100 text-gray-700 border border-gray-300'
+                                            }`}
+                                            onClick={() => setDesktopCallType('voice')}
+                                        >
+                                            <PhoneCall className="w-4 h-4" />
+                                            Voice
+                                        </button>
+                                        <button
+                                            className={`flex-1 px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-1 ${
+                                                desktopCallType === 'video' 
+                                                    ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                                                    : 'bg-gray-100 text-gray-700 border border-gray-300'
+                                            }`}
+                                            onClick={() => setDesktopCallType('video')}
+                                        >
+                                            <Video className="w-4 h-4" />
+                                            Video
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div className="text-xs text-gray-500 mb-3">
+                                    Connected devices: {connectedDevices.filter(d => !d.isCurrentDevice).length} (excluding you)
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button
+                                    className="flex-1 bg-gray-100 text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+                                    onClick={() => setIsDesktopCallModalOpen(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="flex-1 bg-emerald-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center gap-1"
+                                    onClick={initiateDesktopCall}
+                                    disabled={connectedDevices.filter(d => !d.isCurrentDevice).length === 0}
+                                >
+                                    {desktopCallType === 'video' ? (
+                                        <><Video className="w-4 h-4" /> Start Video Call</>
+                                    ) : (
+                                        <><PhoneCall className="w-4 h-4" /> Start Voice Call</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Regular Call Button */}
                 <div className='relative'>
                     <button 
                         className='flex items-center gap-1 border border-blue-300 bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-blue-100'

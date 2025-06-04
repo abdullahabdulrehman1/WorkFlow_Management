@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import Echo from 'laravel-echo';
 import axios from 'axios';
+import desktopCallService from '../../services/DesktopCallService';
 
 // Custom hook for managing Reverb real-time connections
 export const useWorkflowRealtime = (workflowId) => {
@@ -145,6 +146,19 @@ export const useWorkflowRealtime = (workflowId) => {
                         console.log('❓ [' + connectionId.current + '] Unknown event type:', e.type, e);
                     }
                 })
+                .listen('.DesktopCallEvent', (e) => {
+                    console.log('📞 [' + connectionId.current + '] Received DesktopCallEvent:', e);
+                    
+                    // Handle incoming desktop call
+                    if (e.type === 'desktop_call') {
+                        console.log('📞 Incoming desktop call from:', e.callerName);
+                        
+                        // Don't show call window to the caller themselves
+                        if (e.callerId !== connectionId.current) {
+                            handleIncomingDesktopCall(e);
+                        }
+                    }
+                })
                 .subscribed(() => {
                     console.log('✅ [' + connectionId.current + '] Successfully subscribed to channel workflow.' + workflowId);
                     setIsConnected(true);
@@ -261,6 +275,38 @@ export const useWorkflowRealtime = (workflowId) => {
         };
     }, [workflowId]);
 
+    // Handle incoming desktop call
+    const handleIncomingDesktopCall = async (callEvent) => {
+        console.log('📞 Handling incoming desktop call:', callEvent);
+        
+        // Show notification toast
+        toast.success(`📞 Incoming desktop call from ${callEvent.callerName}`, {
+            duration: 10000,
+            position: 'top-center',
+            style: {
+                background: '#10b981',
+                color: 'white',
+                fontSize: '16px',
+            },
+        });
+
+        // Open native call window if in Electron
+        if (desktopCallService.isElectronApp()) {
+            try {
+                await desktopCallService.openCallWindow({
+                    contactName: callEvent.callerName,
+                    contactNumber: callEvent.callerId || '',
+                    isVideoCall: callEvent.callData?.callType === 'video',
+                    callStatus: 'ringing',
+                    callId: callEvent.callData?.callId,
+                    workflowId: callEvent.callData?.workflowId
+                });
+            } catch (error) {
+                console.error('❌ Error opening call window:', error);
+            }
+        }
+    };
+
     // Function to send broadcast message
     const sendBroadcastMessage = async (message, type = 'info') => {
         if (!workflowId) {
@@ -299,10 +345,38 @@ export const useWorkflowRealtime = (workflowId) => {
         }
     };
 
+    // Function to start desktop call
+    const startDesktopCall = async (callType = 'voice') => {
+        if (!workflowId) {
+            toast.error('No workflow selected');
+            return false;
+        }
+
+        if (!isConnected) {
+            toast.error('Not connected to real-time server');
+            return false;
+        }
+
+        const { deviceName } = getDeviceInfo();
+        
+        try {
+            return await desktopCallService.startDesktopCall(
+                workflowId,
+                'all',
+                deviceName,
+                callType
+            );
+        } catch (error) {
+            console.error('❌ Error starting desktop call:', error);
+            return false;
+        }
+    };
+
     return {
         connectedDevices,
         isConnected,
         connectionId: connectionId.current,
-        sendBroadcastMessage
+        sendBroadcastMessage,
+        startDesktopCall
     };
 };

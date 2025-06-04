@@ -1,100 +1,116 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import serve from 'electron-serve';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import windowStateKeeper from 'electron-window-state';
+
+// Import our reusable components
+import MainWindowManager from './src/windows/MainWindowManager.js';
+import CallWindowManager from './src/windows/CallWindowManager.js';
+import NotificationService from './src/services/NotificationService.js';
+import IPCHandler from './src/utils/IPCHandler.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Determine if in development or production environment
-const isDev = !app.isPackaged;
+// Initialize managers
+let mainWindowManager;
+let callWindowManager;
+let notificationService;
+let ipcHandler;
 
-// In production, serve the built files
-const loadURL = serve({
-  directory: path.join(__dirname, '../public/build')
-});
+// Set Windows-specific settings
+if (process.platform === 'win32') {
+  // Set app user model ID for Windows notifications
+  app.setAppUserModelId('com.workflow.management.desktop');
+}
 
-// Keep a global reference of the window object
-let mainWindow;
-
+// Create main window function
 const createWindow = async () => {
-  // Load the previous window state with fallback settings
-  let windowState = windowStateKeeper({
-    defaultWidth: 1200,
-    defaultHeight: 800
-  });
-
-  // Create the browser window
-  mainWindow = new BrowserWindow({
-    x: windowState.x,
-    y: windowState.y,
-    width: windowState.width,
-    height: windowState.height,
-    minWidth: 800,
-    minHeight: 600,
-    autoHideMenuBar: true, // Hide the menu bar (File, Edit, View, etc.)
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false // Disable web security for development
-    },
-    icon: path.join(__dirname, '../public/icons/windows11/Square44x44Logo.targetsize-256.png'),
-    show: true // Show window immediately
-  });
-
-  // Register listeners to save the window state
-  windowState.manage(mainWindow);
-
-  // Add debugging
-  console.log('🚀 Creating Electron window...');
-  console.log('📍 Loading URL: http://localhost:8000');
-
-  // Setup window loading
-  if (isDev) {
-    try {
-      // In development, connect to Laravel server
-      await mainWindow.loadURL('http://localhost:8000');
-      console.log('✅ Successfully loaded Laravel server');
-      
-      // Force show the window
-      mainWindow.show();
-      mainWindow.focus();
-      
-    } catch (error) {
-      console.error('❌ Failed to load URL:', error);
-    }
+  try {
+    console.log('🚀 Creating Electron main window...');
     
-    // Enable debugging in development
-    mainWindow.webContents.openDevTools();
+    // Initialize all managers
+    mainWindowManager = new MainWindowManager();
+    callWindowManager = new CallWindowManager();
+    notificationService = new NotificationService(mainWindowManager, callWindowManager);
+    ipcHandler = new IPCHandler(mainWindowManager, callWindowManager, notificationService);
+
+    // Create the main window
+    await mainWindowManager.create();
     
-    // Add more detailed error handling
-    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-      console.log('❌ Failed to load:', errorDescription, 'URL:', validatedURL);
-      if (isDev && validatedURL.includes('localhost:8000')) {
-        console.log('🔄 Retrying connection in 2 seconds...');
-        setTimeout(() => {
-          mainWindow.loadURL('http://localhost:8000');
-        }, 2000);
+    // Set up IPC handlers
+    setupIPCHandlers();
+    
+    // Test notification after window is created
+    setTimeout(async () => {
+      try {
+        console.log('📢 Testing notification...');
+        const result = await notificationService.showCallNotification({
+          callId: 'test-call',
+          isVideoCall: false,
+          contactName: 'Test User',
+          callerId: '123',
+          callerName: 'Test User'
+        });
+        console.log('📢 Notification test result:', result);
+      } catch (error) {
+        console.error('❌ Error testing notification:', error);
       }
-    });
-
-    mainWindow.webContents.on('did-finish-load', () => {
-      console.log('✅ Page finished loading');
-    });
-    
-  } else {
-    // In production, load the built app
-    await loadURL(mainWindow);
+    }, 3000);
+  } catch (error) {
+    console.error('❌ Error creating window:', error);
   }
-  
-  // Remove the ready-to-show handler since we're showing immediately
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
 };
+
+// Set up IPC handlers
+function setupIPCHandlers() {
+  // Handle incoming call notification
+  ipcMain.handle('notification:incoming-call', async (event, callData) => {
+    try {
+      console.log('📢 Received incoming call notification request:', callData);
+      const result = await notificationService.showCallNotification(callData);
+      return { success: result };
+    } catch (error) {
+      console.error('❌ Error handling incoming call notification:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle opening call window
+  ipcMain.handle('call:open-window', async (event, callData) => {
+    try {
+      console.log('📞 Opening call window:', callData);
+      await callWindowManager.create(callData);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error opening call window:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle closing call window
+  ipcMain.handle('call:close-window', async () => {
+    try {
+      console.log('📞 Closing call window');
+      callWindowManager.close();
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error closing call window:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Handle getting call window status
+  ipcMain.handle('call:get-status', async () => {
+    try {
+      const status = callWindowManager.getStatus();
+      return { success: true, ...status };
+    } catch (error) {
+      console.error('❌ Error getting call window status:', error);
+      return { success: false, error: error.message };
+    }
+  });
+}
 
 // When Electron has finished initialization, create the window
 app.whenReady().then(createWindow);
@@ -111,15 +127,4 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
-});
-
-// Handle IPC events from the renderer process
-ipcMain.on('app-info', (event) => {
-  event.sender.send('app-info-reply', {
-    appName: app.getName(),
-    appVersion: app.getVersion(),
-    electronVersion: process.versions.electron,
-    platform: process.platform,
-    arch: process.arch
-  });
 });
