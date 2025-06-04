@@ -21,7 +21,7 @@ class IPCHandler {
     });
 
     // Call window handlers
-    ipcMain.handle('open-call-window', async (event, callData) => {
+    ipcMain.handle('call:open-window', async (event, callData) => {
       try {
         console.log('📞 IPC: Opening call window with data:', callData);
         const window = await this.callWindowManager.create(callData);
@@ -32,7 +32,7 @@ class IPCHandler {
       }
     });
 
-    ipcMain.handle('close-call-window', async (event) => {
+    ipcMain.handle('call:close-window', async (event) => {
       try {
         const closed = this.callWindowManager.close();
         // Clear notification badge when call is closed
@@ -44,8 +44,21 @@ class IPCHandler {
       }
     });
 
-    ipcMain.handle('get-call-window-status', async (event) => {
+    ipcMain.handle('call:get-status', async (event) => {
       return this.callWindowManager.getStatus();
+    });
+
+    // Legacy handlers for backward compatibility
+    ipcMain.handle('open-call-window', async (event, callData) => {
+      return await ipcMain.emit('call:open-window', event, callData);
+    });
+
+    ipcMain.handle('close-call-window', async (event) => {
+      return await ipcMain.emit('call:close-window', event);
+    });
+
+    ipcMain.handle('get-call-window-status', async (event) => {
+      return await ipcMain.emit('call:get-status', event);
     });
 
     // Native notification handler

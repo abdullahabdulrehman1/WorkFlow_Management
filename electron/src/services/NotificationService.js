@@ -159,6 +159,58 @@ class NotificationService {
     });
     this.activeNotifications.clear();
   }
+
+  // Show simple toast notification - this is the missing method
+  async showToastNotification(title, body, options = {}) {
+    console.log('📢 Showing toast notification:', { title, body, options });
+
+    if (!this.isSupported()) {
+      console.log('❌ Notifications not supported on this system');
+      return false;
+    }
+
+    try {
+      // Get the correct icon path
+      let iconPath = path.join(__dirname, '../../public/logo.png');
+      
+      // Create simple notification
+      const notification = new Notification({
+        title: title || 'Notification',
+        body: body || '',
+        icon: iconPath,
+        silent: options.silent || false,
+        ...options
+      });
+
+      // Handle notification click
+      notification.on('click', () => {
+        console.log('📢 Toast notification clicked');
+        this.mainWindowManager.show();
+        notification.close();
+      });
+
+      // Show the notification
+      notification.show();
+      console.log('✅ Toast notification shown successfully');
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error showing toast notification:', error);
+      return false;
+    }
+  }
+
+  // Clear notification badge (for compatibility)
+  clearBadge() {
+    console.log('📢 Clearing notification badge');
+    // On Windows, we can stop flashing the window
+    if (process.platform === 'win32' && !this.mainWindowManager.isDestroyed()) {
+      const mainWindow = this.mainWindowManager.getWindow();
+      if (mainWindow) {
+        mainWindow.flashFrame(false);
+      }
+    }
+  }
 }
 
 export default NotificationService;
