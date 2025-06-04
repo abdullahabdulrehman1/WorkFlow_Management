@@ -60,14 +60,16 @@ export const useWorkflowRealtime = (workflowId) => {
                 wsHost: window.location.hostname,
                 wsPort: import.meta.env.VITE_REVERB_PORT || 8080,
                 forceTLS: false,
-                enabledTransports: ['ws', 'wss']
+                enabledTransports: ['ws', 'wss'],
+                disableStats: true,
+                cluster: 'mt1'
             });
 
             console.log('📡 [' + connectionId.current + '] Subscribing to channel:', `workflow.${workflowId}`);
 
             // Subscribe to the workflow channel and store reference
             channelRef.current = echoInstance.current.channel(`workflow.${workflowId}`)
-                .listen('WorkflowEvent', (e) => {
+                .listen('.WorkflowEvent', (e) => {
                     console.log('📨 [' + connectionId.current + '] Received WorkflowEvent:', e);
                     
                     if (e.type === 'connect') {
@@ -145,9 +147,11 @@ export const useWorkflowRealtime = (workflowId) => {
                 })
                 .subscribed(() => {
                     console.log('✅ [' + connectionId.current + '] Successfully subscribed to channel workflow.' + workflowId);
+                    setIsConnected(true);
                 })
                 .error((error) => {
                     console.error('❌ [' + connectionId.current + '] Channel subscription error:', error);
+                    setIsConnected(false);
                 });
 
             // Also listen to the underlying Pusher events to debug

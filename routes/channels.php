@@ -17,11 +17,7 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
-// Add presence channel for workflow connections
-Broadcast::channel('workflow.{workflowId}', function ($user, $workflowId) {
-    return [
-        'id' => $user->id,
-        'name' => $user->name,
-        'browser' => request()->header('User-Agent')
-    ];
+// Add public channel for workflow connections
+Broadcast::channel('workflow.{workflowId}', function ($workflowId) {
+    return true; // Allow public access to workflow channels
 });
