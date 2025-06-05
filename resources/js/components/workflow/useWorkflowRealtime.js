@@ -279,15 +279,16 @@ export const useWorkflowRealtime = (workflowId) => {
     // Handle incoming desktop call
     const handleIncomingDesktopCall = async (callEvent) => {
         console.log('📞 Handling incoming desktop call:', callEvent);
-        
-        // Use Windows notification utility for calls
-        const notificationShown = await WindowsNotificationUtil.showIncomingCall(
-            callEvent.callerName, 
-            callEvent.callType || 'voice'
-        );
-        
-        // Fallback to toast if Windows notification failed
-        if (!notificationShown) {
+
+        // In Electron, use the main process notification to play ringtone
+        if (typeof window !== 'undefined' && window.electron && window.electron.notifications && window.electron.notifications.showCallNotification) {
+            await window.electron.notifications.showCallNotification({
+                callId: callEvent.callData?.callId || Date.now().toString(),
+                contactName: callEvent.callerName,
+                isVideoCall: callEvent.callType === 'video'
+            });
+        } else {
+            // Fallback to toast if not in Electron
             toast.success(`📞 Incoming desktop call from ${callEvent.callerName}`, {
                 duration: 10000,
                 position: 'top-center',

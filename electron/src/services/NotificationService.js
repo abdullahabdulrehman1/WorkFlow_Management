@@ -117,6 +117,7 @@ class NotificationService {
   // Show native system notification that works even when app is in background
   async showCallNotification(callData) {
     console.log('📢 Showing native call notification:', callData);
+    console.log('🔊 Debug: Incoming call event triggered');
 
     if (!this.isSupported()) {
       console.log('❌ Notifications not supported on this system');
@@ -128,7 +129,9 @@ class NotificationService {
       this.closeNotification(callData.callId);
 
       // Play call ringtone sound
+      console.log('🔊 Debug: Calling playSound for incoming call');
       await this.playSound('callRingtone');
+      console.log('🔊 Debug: playSound called for incoming call');
 
       // Get the correct icon path for the platform
       let iconPath;
@@ -152,7 +155,7 @@ class NotificationService {
         title: callData.isVideoCall ? '📹 Incoming Video Call' : '📞 Incoming Voice Call',
         body: `${callData.contactName || 'Unknown Contact'} is calling you...`,
         icon: iconPath,
-        silent: false, // Let the system play its notification sound too
+        silent: true, // Set to true to prevent browser notification
         requireInteraction: true
       });
 

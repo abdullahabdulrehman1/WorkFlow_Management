@@ -18,7 +18,7 @@ const loadURL = serve({
 class MainWindowManager {
   constructor() {
     this.window = null;
-    this.hasShownTrayNotification = false; // Track if we've shown the tray notification
+    this.hasShownTrayNotification = false; 
   }
 
   async create() {

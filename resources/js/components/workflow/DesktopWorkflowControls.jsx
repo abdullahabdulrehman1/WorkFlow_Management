@@ -147,6 +147,20 @@ function DesktopWorkflowControls({
         console.log('🧪 === SOUND SYSTEM DEBUG END ===');
     };
     
+    // Remove debug buttons and add useEffect for ringtone
+    useEffect(() => {
+        if (isCallModalOpen || isDesktopCallModalOpen) {
+            console.log('🔊 Call screen rendered, playing ringtone');
+            if (typeof window !== 'undefined' && window.soundManager) {
+                window.soundManager.playSound('sounds/test.mp3', 'callRingtone', true);
+            }
+        } else {
+            if (typeof window !== 'undefined' && window.soundManager) {
+                window.soundManager.stopSound('callRingtone');
+            }
+        }
+    }, [isCallModalOpen, isDesktopCallModalOpen]);
+    
     return (
         <div className='flex justify-between items-center mb-4'>
             <div className='flex gap-4 items-center'>
