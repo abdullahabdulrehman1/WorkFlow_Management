@@ -12,6 +12,7 @@ class NotificationService {
     this.callWindowManager = callWindowManager;
     this.activeNotifications = new Map();
     this.setupWindowsOptimizations();
+    this.setupSoundPaths();
   }
 
   // Setup Windows-specific optimizations for notifications
@@ -22,9 +23,95 @@ class NotificationService {
     }
   }
 
+  // Setup sound file paths
+  setupSoundPaths() {
+    this.soundPaths = {
+      callRingtone: path.join(__dirname, '../../public/sounds/test.mp3'),
+      notificationSound: path.join(__dirname, '../../public/sounds/test.mp3')
+    };
+    
+    // Verify sound files exist
+    Object.entries(this.soundPaths).forEach(([name, soundPath]) => {
+      if (fs.existsSync(soundPath)) {
+        console.log(`🔊 Found sound file for ${name}:`, soundPath);
+      } else {
+        console.warn(`⚠️ Sound file not found for ${name}:`, soundPath);
+      }
+    });
+  }
+
   // Check if notifications are supported
   isSupported() {
     return Notification.isSupported();
+  }
+
+  // Play sound file
+  async playSound(soundType = 'callRingtone') {
+    try {
+      const soundPath = this.soundPaths[soundType];
+      if (!soundPath || !fs.existsSync(soundPath)) {
+        console.warn(`⚠️ Sound file not found for ${soundType} at path: ${soundPath}`);
+        return false;
+      }
+
+      console.log(`🔊 NotificationService.playSound called:`, {
+        soundType,
+        soundPath,
+        mainWindowExists: !this.mainWindowManager.isDestroyed()
+      });
+      
+      // Send sound play request to renderer process
+      if (!this.mainWindowManager.isDestroyed()) {
+        const window = this.mainWindowManager.getWindow();
+        if (window) {
+          // Convert absolute path to relative URL for the renderer
+          const relativeSoundPath = path.relative(
+            path.join(__dirname, '../../public'),
+            soundPath
+          ).replace(/\\/g, '/');
+          
+          console.log(`🎵 Sending play-sound IPC message:`, {
+            soundPath: relativeSoundPath,
+            soundType: soundType,
+            loop: soundType === 'callRingtone'
+          });
+          
+          window.webContents.send('play-sound', {
+            soundPath: relativeSoundPath,
+            soundType: soundType,
+            loop: soundType === 'callRingtone' // Loop ringtone until call is answered/declined
+          });
+          
+          console.log(`✅ Play-sound IPC message sent successfully`);
+          return true;
+        } else {
+          console.warn(`⚠️ Main window not available for sound playback`);
+        }
+      } else {
+        console.warn(`⚠️ Main window manager is destroyed, cannot play sound`);
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Error playing sound:', error);
+      return false;
+    }
+  }
+
+  // Stop sound playback
+  async stopSound(soundType = 'callRingtone') {
+    try {
+      if (!this.mainWindowManager.isDestroyed()) {
+        const window = this.mainWindowManager.getWindow();
+        if (window) {
+          window.webContents.send('stop-sound', { soundType });
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Error stopping sound:', error);
+      return false;
+    }
   }
 
   // Show native system notification that works even when app is in background
@@ -39,6 +126,9 @@ class NotificationService {
     try {
       // Close any existing notifications for this call
       this.closeNotification(callData.callId);
+
+      // Play call ringtone sound
+      await this.playSound('callRingtone');
 
       // Get the correct icon path for the platform
       let iconPath;
@@ -62,7 +152,7 @@ class NotificationService {
         title: callData.isVideoCall ? '📹 Incoming Video Call' : '📞 Incoming Voice Call',
         body: `${callData.contactName || 'Unknown Contact'} is calling you...`,
         icon: iconPath,
-        silent: false,
+        silent: false, // Let the system play its notification sound too
         requireInteraction: true
       });
 
@@ -72,6 +162,7 @@ class NotificationService {
       // Handle notification click
       notification.on('click', () => {
         console.log('📞 Notification clicked - answering call');
+        this.stopSound('callRingtone'); // Stop ringtone
         this.handleAnswer(callData);
         this.closeNotification(callData.callId);
       });
@@ -79,6 +170,7 @@ class NotificationService {
       // Handle notification close
       notification.on('close', () => {
         console.log('📞 Notification closed');
+        this.stopSound('callRingtone'); // Stop ringtone
         this.activeNotifications.delete(callData.callId);
         this.handleDecline(callData);
       });
@@ -99,6 +191,7 @@ class NotificationService {
       setTimeout(() => {
         if (this.activeNotifications.has(callData.callId)) {
           console.log('📞 Auto-dismissing call notification after timeout');
+          this.stopSound('callRingtone'); // Stop ringtone
           this.closeNotification(callData.callId);
           this.handleDecline(callData);
         }
@@ -116,6 +209,9 @@ class NotificationService {
   async handleAnswer(callData) {
     console.log('📞 Handling call answer');
     
+    // Stop ringtone sound
+    await this.stopSound('callRingtone');
+    
     // Open call window
     await this.callWindowManager.create({
       ...callData,
@@ -130,6 +226,9 @@ class NotificationService {
   // Handle declining the call
   handleDecline(callData) {
     console.log('📞 Handling call decline');
+    
+    // Stop ringtone sound
+    this.stopSound('callRingtone');
     
     // Close any call windows
     this.callWindowManager.close();
@@ -147,6 +246,8 @@ class NotificationService {
   closeNotification(callId) {
     const notification = this.activeNotifications.get(callId);
     if (notification) {
+      // Stop sound when closing notification
+      this.stopSound('callRingtone');
       notification.close();
       this.activeNotifications.delete(callId);
     }

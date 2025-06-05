@@ -89,6 +89,63 @@ function DesktopWorkflowControls({
     const testBroadcast = async () => {
         await sendBroadcastMessage('Test broadcast from this device!');
     };
+
+    // Debug function to test sound system
+    const debugSoundSystem = () => {
+        console.log('🧪 === SOUND SYSTEM DEBUG START ===');
+        
+        // Check environment
+        console.log('🔍 Environment check:');
+        console.log('  - Window object:', typeof window);
+        console.log('  - Window.electron:', typeof window !== 'undefined' ? !!window.electron : 'no window');
+        console.log('  - In Electron:', typeof window !== 'undefined' && !!window.electron);
+        
+        if (typeof window !== 'undefined' && window.electron) {
+            console.log('  - Electron APIs:', Object.keys(window.electron));
+            if (window.electron.ipcRenderer) {
+                console.log('  - IPC Renderer available:', true);
+            } else {
+                console.log('  - IPC Renderer available:', false);
+            }
+        }
+        
+        // Check SoundManager
+        if (typeof window !== 'undefined' && window.soundManager) {
+            console.log('🔊 SoundManager status:', window.soundManager.getStatus());
+            
+            // Test direct sound playback
+            console.log('🎵 Testing direct sound playback...');
+            window.soundManager.testSound().then(result => {
+                console.log('🎵 Direct sound test result:', result);
+            }).catch(error => {
+                console.error('❌ Direct sound test error:', error);
+            });
+        } else {
+            console.warn('⚠️ SoundManager not available on window object');
+            
+            // Test basic HTML5 audio
+            console.log('🎵 Testing basic HTML5 audio...');
+            try {
+                const audio = new Audio('/sounds/test.mp3');
+                audio.volume = 0.5;
+                audio.play().then(() => {
+                    console.log('✅ Basic HTML5 audio test successful');
+                    toast.success('HTML5 audio test successful!');
+                    setTimeout(() => {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }, 2000);
+                }).catch(error => {
+                    console.error('❌ Basic HTML5 audio test failed:', error);
+                    toast.error('HTML5 audio test failed: ' + error.message);
+                });
+            } catch (error) {
+                console.error('❌ Error creating HTML5 audio:', error);
+            }
+        }
+        
+        console.log('🧪 === SOUND SYSTEM DEBUG END ===');
+    };
     
     return (
         <div className='flex justify-between items-center mb-4'>
@@ -207,6 +264,14 @@ function DesktopWorkflowControls({
                         </div>
                     )}
                 </div>
+
+                {/* Debug Sound Button */}
+                <button 
+                    className='flex items-center gap-1 border border-orange-300 bg-orange-50 text-orange-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-orange-100'
+                    onClick={debugSoundSystem}
+                >
+                    🔊 Debug Sound
+                </button>
 
                 {/* Desktop Calling Button */}
                 <div className='relative'>

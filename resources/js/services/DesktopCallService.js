@@ -1,8 +1,10 @@
 import { toast } from 'react-hot-toast';
+import soundManager from '../utils/SoundManager';
 
 class DesktopCallService {
     constructor() {
         this.isElectron = typeof window !== 'undefined' && window.electron;
+        this.currentRingtone = null;
     }
 
     // Check if running in Electron
@@ -28,6 +30,47 @@ class DesktopCallService {
         }
 
         return null;
+    }
+
+    // Play ringtone sound (works in both Electron and web)
+    async playRingtone() {
+        try {
+            if (this.isElectronApp()) {
+                // In Electron, the main process will handle sound via IPC
+                console.log('🔊 Ringtone will be played by Electron main process');
+                return true;
+            } else {
+                // In web browser, play sound directly
+                console.log('🔊 Playing ringtone in web browser');
+                this.stopRingtone(); // Stop any existing ringtone
+                
+                this.currentRingtone = new Audio('/sounds/test.mp3');
+                this.currentRingtone.loop = true;
+                this.currentRingtone.volume = 0.8;
+                
+                await this.currentRingtone.play();
+                console.log('✅ Web ringtone started playing');
+                return true;
+            }
+        } catch (error) {
+            console.error('❌ Error playing ringtone:', error);
+            return false;
+        }
+    }
+
+    // Stop ringtone sound
+    stopRingtone() {
+        try {
+            if (!this.isElectronApp() && this.currentRingtone) {
+                this.currentRingtone.pause();
+                this.currentRingtone.currentTime = 0;
+                this.currentRingtone = null;
+                console.log('🔇 Web ringtone stopped');
+            }
+            // In Electron, the main process will handle stopping via IPC
+        } catch (error) {
+            console.error('❌ Error stopping ringtone:', error);
+        }
     }
 
     // Show simple Windows notification - simplified version
@@ -66,17 +109,39 @@ class DesktopCallService {
     async showNativeCallNotification(callData) {
         if (!this.isElectronApp()) {
             console.log('Not in Electron app, using web toast notification');
-            toast.success(`📞 Incoming call from ${callData.callerName}`, {
-                duration: 10000,
+            
+            // Play sound in web browser
+            await this.playRingtone();
+            
+            // Show simple text-based toast
+            const toastMessage = `📞 Incoming ${callData.callType === 'video' ? 'video' : 'voice'} call from ${callData.callerName}`;
+            
+            toast.success(toastMessage, {
+                duration: 30000, // 30 seconds
                 position: 'top-center',
+                style: {
+                    background: '#059669',
+                    color: 'white',
+                    minWidth: '350px'
+                },
+                // Add dismiss functionality
+                onClick: () => {
+                    this.stopRingtone();
+                }
             });
+
+            // Auto stop ringtone after 30 seconds
+            setTimeout(() => {
+                this.stopRingtone();
+            }, 30000);
+
             return false;
         }
 
         try {
             console.log('📢 Showing native Windows notification for call:', callData);
             
-            // Use simple notification for calls
+            // Use simple notification for calls - sound will be handled by Electron main process
             const title = callData.callType === 'video' ? '📹 Incoming Video Call' : '📞 Incoming Voice Call';
             const body = `${callData.callerName} is calling you...`;
             
@@ -84,7 +149,8 @@ class DesktopCallService {
             return result;
         } catch (error) {
             console.error('❌ Error showing native notification:', error);
-            // Fallback to toast
+            // Fallback to toast with sound
+            await this.playRingtone();
             toast.error('Error showing native notification: ' + error.message);
             return false;
         }
@@ -209,13 +275,12 @@ class DesktopCallService {
             const result = await response.json();
             
             if (result.success) {
-                // If we're in Electron, show the notification immediately
-                if (this.isElectronApp()) {
-                    await this.showNativeCallNotification({
-                        ...callData,
-                        callerId: 'self' // Mark as self-initiated call
-                    });
-                }
+                // If we're in Electron, show the notification immediately (with sound via main process)
+                // If we're in web browser, show notification with web-based sound
+                await this.showNativeCallNotification({
+                    ...callData,
+                    callerId: 'self' // Mark as self-initiated call
+                });
                 
                 toast.success('Desktop call initiated successfully!');
                 return true;

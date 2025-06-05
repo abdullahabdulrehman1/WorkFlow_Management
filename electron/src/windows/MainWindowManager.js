@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, Notification, app } from 'electron';
 import windowStateKeeper from 'electron-window-state';
 import serve from 'electron-serve';
 import path from 'path';
@@ -18,6 +18,7 @@ const loadURL = serve({
 class MainWindowManager {
   constructor() {
     this.window = null;
+    this.hasShownTrayNotification = false; // Track if we've shown the tray notification
   }
 
   async create() {
@@ -90,6 +91,29 @@ class MainWindowManager {
       await loadURL(this.window);
     }
     
+    // Handle window close event - minimize to tray instead of closing
+    this.window.on('close', (event) => {
+      if (!process.env.FORCE_QUIT && !app.isQuiting) {
+        event.preventDefault();
+        console.log('🔽 Minimizing to system tray...');
+        this.window.hide();
+        
+        // Show notification on first minimize
+        if (!this.hasShownTrayNotification) {
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'Workflow Management',
+              body: 'App is running in the background. Click the tray icon to restore.',
+              silent: true
+            }).show();
+          }
+          this.hasShownTrayNotification = true;
+        }
+      } else {
+        this.window = null;
+      }
+    });
+
     this.window.on('closed', () => {
       this.window = null;
     });
@@ -118,8 +142,17 @@ class MainWindowManager {
     }
   }
 
-  close() {
+  // Add method to hide window to tray
+  hideToTray() {
     if (this.window && !this.window.isDestroyed()) {
+      this.window.hide();
+    }
+  }
+
+  // Add method to force close (for when quitting from tray)
+  forceClose() {
+    if (this.window && !this.window.isDestroyed()) {
+      process.env.FORCE_QUIT = true;
       this.window.close();
       this.window = null;
     }

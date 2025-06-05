@@ -9,6 +9,7 @@ import PushManager from './components/notifications/PushManager';
 import NotificationListener from './components/notifications/NotificationListener';
 import { CallManager, CallProvider } from './components/call/CallManager';
 import { WindowsNotificationUtil } from './utils/WindowsNotification';
+import soundManager from './utils/SoundManager';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -49,6 +50,11 @@ setTimeout(() => {
         console.log('❌ STILL NO ELECTRON AFTER DELAY');
     }
 }, 1000);
+
+// Initialize sound manager if in Electron environment
+if (typeof window !== 'undefined' && window.electron) {
+    console.log('🔊 Sound manager initialized for Electron environment');
+}
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

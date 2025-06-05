@@ -22,6 +22,23 @@ try {
       });
     },
     
+    // IPC communication for sound control
+    ipcRenderer: {
+      on: (channel, callback) => {
+        // Whitelist channels for security
+        const validChannels = ['play-sound', 'stop-sound'];
+        if (validChannels.includes(channel)) {
+          ipcRenderer.on(channel, callback);
+        }
+      },
+      removeAllListeners: (channel) => {
+        const validChannels = ['play-sound', 'stop-sound'];
+        if (validChannels.includes(channel)) {
+          ipcRenderer.removeAllListeners(channel);
+        }
+      }
+    },
+    
     // API for notifications
     notifications: {
       // Simple notification - this is what you need for basic Windows notifications
