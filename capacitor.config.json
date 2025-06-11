@@ -8,8 +8,8 @@
     "androidScheme": "https",
     "allowNavigation": [
       "https://*.z360.biz/*",
-      "https://app.z360.biz/*",
-      "https://cip.app.z360.biz/*"
+      "https://app.z360.biz/*"
+      
     ]
   },
   "android": {

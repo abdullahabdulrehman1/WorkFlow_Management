@@ -155,40 +155,10 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleCallIntent(intent);
-        handleUrlIntent(intent);
+      
     }
     
-    /**
-     * Handle URL intents from z360.biz domains
-     */
-    private void handleUrlIntent(Intent intent) {
-        if (intent == null) return;
-        
-        String action = intent.getAction();
-        Uri data = intent.getData();
-        
-        if (Intent.ACTION_VIEW.equals(action) && data != null) {
-            String url = data.toString();
-            String host = data.getHost();
-            
-            // Check if it's a z360.biz domain
-            if (host != null && (host.equals("app.z360.biz") || host.endsWith(".z360.biz"))) {
-                Log.d(TAG, "Handling z360.biz URL: " + url);
-                
-                // Navigate to the URL within the app
-                bridge.eval("window.location.href = '" + url + "';", new ValueCallback<String>() {
-                    @Override
-                    public void onReceiveValue(String value) {
-                        Log.d(TAG, "URL navigation result: " + value);
-                    }
-                });
-                
-                // Update server URL if needed
-                String baseUrl = data.getScheme() + "://" + data.getHost();
-                setServerUrl(baseUrl);
-            }
-        }
-    }
+   
     
     private void handleCallIntent(Intent intent) {
         if (intent == null) return;
