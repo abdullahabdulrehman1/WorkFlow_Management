@@ -69,6 +69,56 @@ Route::get('/api/firebase/config/check', [PushNotificationController::class, 'ch
 // Call notification route - Notify ALL users (simplified)
 Route::post('/api/calls/notify', [PushNotificationController::class, 'sendCallNotificationToAll']);
 
+// Quick test notification route
+Route::get('/api/test-notification', function() {
+    try {
+        $firebaseConfigPath = base_path('firebase-credentials.json');
+        
+        if (!file_exists($firebaseConfigPath)) {
+            return response()->json(['error' => 'Firebase credentials not found'], 500);
+        }
+        
+        $firebase = (new \Kreait\Firebase\Factory)
+            ->withServiceAccount($firebaseConfigPath)
+            ->createMessaging();
+        
+        $subscriptions = \App\Models\PushSubscription::where('content_encoding', 'fcm')->get();
+        
+        if ($subscriptions->count() === 0) {
+            return response()->json(['error' => 'No FCM tokens found'], 404);
+        }
+        
+        $sentCount = 0;
+        foreach ($subscriptions as $sub) {
+            try {
+                $message = \Kreait\Firebase\Messaging\CloudMessage::withTarget('token', $sub->endpoint)
+                    ->withNotification(\Kreait\Firebase\Messaging\Notification::create(
+                        'iOS Test Notification',
+                        'This is a background notification test from your workflow app! 🎉'
+                    ))
+                    ->withData([
+                        'type' => 'test',
+                        'timestamp' => time()
+                    ]);
+                    
+                $result = $firebase->send($message);
+                $sentCount++;
+            } catch (Exception $e) {
+                \Log::error('FCM send error: ' . $e->getMessage());
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'sent' => $sentCount,
+            'total_tokens' => $subscriptions->count()
+        ]);
+        
+    } catch (Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
 // Wrapped all API routes in the 'api' middleware group
 Route::middleware(['api'])->group(function () {
     Route::get('/test-api', function () {

@@ -58,8 +58,8 @@ export const CallProvider = ({ children }) => {
           // Register with FCM
           await PushNotifications.register();
 
-          // Register for FCM token
-          if (Capacitor.getPlatform() === 'android') {
+          // Register for FCM token (both Android and iOS)
+          try {
             const { token } = await FCM.getToken();
             console.log('FCM Token:', token);
             
@@ -70,6 +70,8 @@ export const CallProvider = ({ children }) => {
             } catch (error) {
               console.error('Error registering FCM token with server:', error);
             }
+          } catch (error) {
+            console.error('Error getting FCM token:', error);
           }
           
           // Listen for incoming push notifications (calls)
@@ -356,7 +358,7 @@ export const CallProvider = ({ children }) => {
 export const CallManager = () => {
   const registerWithFCM = async () => {
     try {
-      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      if (Capacitor.isNativePlatform()) {
         const { token } = await FCM.getToken();
         await axios.post('/api/fcm/register', { token });
         console.log('FCM token registered successfully');

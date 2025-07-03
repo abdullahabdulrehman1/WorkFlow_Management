@@ -12,10 +12,16 @@
         "capacitor:run:android": "npx cap run android",
         "capacitor:open:android": "npx cap open android",
         "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l \"",
+        "ios-l": "npx cap run ios -l --host=0.0.0.0 --port=8000",
+        "capacitor:run:ios": "npx cap run ios",
+        "capacitor:open:ios": "npx cap open ios",
+        "capacitor:live:ios": "concurrently \"npm run dev\" \"npx cap run ios -l --host=0.0.0.0 --port=8000\"",
         "mobile:dev": "cross-env concurrently \"vite --host\" \"npx cap sync android && npx cap run android -l\"",
+        "mobile:dev:ios": "cross-env concurrently \"vite --host\" \"npx cap sync ios && npx cap run ios -l --host=0.0.0.0 --port=8000\"",
         "pwa": "vite build && php artisan serve --host=0.0.0.0 --port=8000",
         "app": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"npm run dev\"",
-        "mobile:full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"vite --host\" \"npx cap sync android && npx cap run android -l\""
+        "mobile:full-stack": "cross-env concurrently \"php artisan serve --host=0.0.0.0\" \"vite --host\" \"npx cap sync android && npx cap run android -l\"",
+        "mobile:full-stack:ios": "cross-env concurrently \"php artisan serve --host=0.0.0.0 --port=8000\" \"vite --host\" \"npx cap sync ios && npx cap run ios -l --host=0.0.0.0 --port=8000\""
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.4",
@@ -43,6 +49,7 @@
         "@capacitor/android": "^7.2.0",
         "@capacitor/cli": "^7.2.0",
         "@capacitor/core": "^7.2.0",
+        "@capacitor/ios": "^7.4.0",
         "@capacitor/local-notifications": "^7.0.1",
         "@capacitor/push-notifications": "^7.0.1",
         "@floating-ui/react": "^0.27.8",
