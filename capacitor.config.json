@@ -3,7 +3,7 @@
   "appName": "workflow",
   "webDir": "public/build",
   "server": {
-    "url": "$DEV_SERVER_HOST:DEV_SERVER_PORT",
+    "url": "http://192.168.20.65:8000",
     "cleartext": true,
     "androidScheme": "http"
   },
@@ -41,7 +41,12 @@
       "displayInForeground": true
     },
     "CallPlugin": {
-      "enabled": true
+      "ios": {
+        "className": "CallPlugin"
+      },
+      "android": {
+        "className": "CallPlugin"
+      }
     }
   }
 }

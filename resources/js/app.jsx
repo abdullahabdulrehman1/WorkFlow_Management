@@ -10,6 +10,7 @@ import NotificationListener from './components/notifications/NotificationListene
 import { CallManager, CallProvider } from './components/call/CallManager';
 import { WindowsNotificationUtil } from './utils/WindowsNotification';
 import soundManager from './utils/SoundManager';
+import { Capacitor } from '@capacitor/core';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -24,17 +25,19 @@ if ('serviceWorker' in navigator) {
         });
 }
 
-// Register service worker for PWA functionality
-const updateSW = registerSW({
-    onNeedRefresh() {
-        console.log('New version available');
-        // You could show a UI notification here to prompt the user to refresh
-    },
-    onOfflineReady() {
-        console.log('PWA is ready to work offline');
-        // You could show a UI notification here that the app is ready for offline use
-    }
-});
+// Register service worker for PWA functionality only if not on native platform
+if (!Capacitor.isNativePlatform()) {
+    const updateSW = registerSW({
+        onNeedRefresh() {
+            console.log('New version available');
+        },
+        onOfflineReady() {
+            console.log('PWA is ready to work offline');
+        }
+    });
+} else {
+    console.log('Skipping PWA service-worker registration inside Capacitor native app');
+}
 
 // Debug: Check if we're in Electron immediately
 console.log('🔍 Immediate Electron check:', typeof window !== 'undefined' ? !!window.electron : false);

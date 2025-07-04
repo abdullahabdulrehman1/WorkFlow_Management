@@ -12,7 +12,7 @@
         "capacitor:run:android": "npx cap run android",
         "capacitor:open:android": "npx cap open android",
         "capacitor:live:android": "concurrently \"npm run dev\" \"npx cap run android -l \"",
-        "ios-l": "npx cap run ios -l --host=0.0.0.0 --port=8000",
+        "ios-l": "npx cap run ios -l --host=192.168.20.65 --port=8000",
         "capacitor:run:ios": "npx cap run ios",
         "capacitor:open:ios": "npx cap open ios",
         "capacitor:live:ios": "concurrently \"npm run dev\" \"npx cap run ios -l --host=0.0.0.0 --port=8000\"",

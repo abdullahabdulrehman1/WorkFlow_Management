@@ -7,16 +7,6 @@ import path from 'path';
 import fs from 'fs';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Ensure index.html exists in build directory
-const copyIndexHtml = () => ({
-  name: 'copy-index-html',
-  closeBundle: () => {
-    const srcHtml = path.resolve(__dirname, 'public/index.html');
-    const destHtml = path.resolve(__dirname, 'public/build/index.html');
-    fs.copyFileSync(srcHtml, destHtml);
-  }
-});
-
 // Read icons from icons.json file
 let iconsManifest = [];
 try {
@@ -33,6 +23,34 @@ try {
 } catch (error) {
   console.error('Error loading icons from icons.json:', error);
 }
+
+// Restore helper: copy public/index.html to public/build/index.html after build
+const copyIndexHtml = () => ({
+  name: 'copy-index-html',
+  closeBundle() {
+    const manifestPath = path.resolve(__dirname, 'public/build/manifest.json');
+    const srcHtmlPath = path.resolve(__dirname, 'public/index.html');
+    const destDir = path.resolve(__dirname, 'public/build');
+    if (!fs.existsSync(manifestPath) || !fs.existsSync(srcHtmlPath)) return;
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    // Find entry for main React app (resources/js/app.jsx or .js)
+    const entryKey = Object.keys(manifest).find(k => k.endsWith('resources/js/app.jsx') || k.endsWith('resources/js/app.js'));
+    if (!entryKey) {
+      console.warn('⚠️ Unable to find app entry in manifest, index.html not updated');
+      return;
+    }
+    const hashedFile = manifest[entryKey].file; // e.g. assets/app-XYZ.js
+
+    let html = fs.readFileSync(srcHtmlPath, 'utf8');
+    // Replace any existing script src pointing to assets/app-*.js
+    html = html.replace(/<script type="module" src="[^"]+app-[^"]+\.js"><\/script>/, `<script type="module" src="/${hashedFile}"></script>`);
+
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    fs.writeFileSync(path.join(destDir, 'index.html'), html);
+    console.log(`🗂️  index.html written with ${hashedFile}`);
+  }
+});
 
 export default defineConfig(({ mode }) => {
   // Load env file based on mode to get environment variables
