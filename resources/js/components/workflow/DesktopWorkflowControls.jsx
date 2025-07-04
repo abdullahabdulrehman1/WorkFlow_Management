@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Switch } from '@headlessui/react';
 import { router } from '@inertiajs/react';
-import { PhoneCall, Monitor } from 'lucide-react';
+import { PhoneCall, Monitor, Smartphone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SaveIndicator from '../SaveIndicator';
 import { useWorkflowRealtime } from './useWorkflowRealtime';
@@ -15,9 +15,10 @@ function DesktopWorkflowControls({
     onClearCanvas 
 }) {
     const [isCallingDesktop, setIsCallingDesktop] = useState(false);
+    const [isCallingIOS, setIsCallingIOS] = useState(false);
     
-    // Use the existing real-time hook for desktop call functionality
-    const { startDesktopCall, isConnected } = useWorkflowRealtime(workflow?.id);
+    // Use the existing real-time hook for desktop & iOS call functionality
+    const { startDesktopCall, startIOSCall, isConnected } = useWorkflowRealtime(workflow?.id);
 
     const handleDesktopCall = async () => {
         if (!workflow?.id) {
@@ -54,6 +55,39 @@ function DesktopWorkflowControls({
             toast.error('Failed to initiate desktop call: ' + error.message);
         } finally {
             setIsCallingDesktop(false);
+        }
+    };
+
+    const handleIOSCall = async () => {
+        if (!workflow?.id) {
+            toast.error('No workflow selected for iOS call');
+            return;
+        }
+
+        if (!isConnected) {
+            toast.error('Not connected to real-time server. Please refresh and try again.');
+            return;
+        }
+
+        setIsCallingIOS(true);
+
+        try {
+            const success = await startIOSCall();
+            if (success) {
+                toast.success('📱 iOS call initiated! Check connected iOS devices.', {
+                    duration: 5000,
+                    position: 'top-center',
+                    style: {
+                        background: '#2dd4bf',
+                        color: 'white',
+                    },
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error starting iOS call:', error);
+            toast.error('Failed to initiate iOS call: ' + error.message);
+        } finally {
+            setIsCallingIOS(false);
         }
     };
 
@@ -126,6 +160,38 @@ function DesktopWorkflowControls({
                         <>
                             <Monitor size={14} />
                             Call Desktop
+                        </>
+                    )}
+                </button>
+
+                {/* Call iOS Button */}
+                <button 
+                    onClick={handleIOSCall}
+                    disabled={isCallingIOS || !isConnected}
+                    className={`
+                        flex items-center gap-2 px-4 py-1 rounded-full text-sm font-medium transition-all duration-200
+                        ${isCallingIOS 
+                            ? 'bg-teal-400 text-white cursor-not-allowed' 
+                            : !isConnected
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-teal-500 hover:bg-teal-600 text-white shadow-md hover:shadow-lg'
+                        }
+                    `}
+                    title={
+                        !isConnected 
+                            ? 'Not connected to real-time server' 
+                            : 'Call iOS - Trigger mock call screen on iOS devices via Laravel Reverb'
+                    }
+                >
+                    {isCallingIOS ? (
+                        <>
+                            <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                            Calling...
+                        </>
+                    ) : (
+                        <>
+                            <PhoneCall size={14} />
+                            Call iOS
                         </>
                     )}
                 </button>

@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import SaveIndicator from '../SaveIndicator';
 import { CallPlugin } from '../../utils/iOSSimpleCall';
+import { useWorkflowRealtime } from './useWorkflowRealtime';
 
 function MobileWorkflowControls({ 
     workflow, 
@@ -15,6 +16,9 @@ function MobileWorkflowControls({
     onSave, 
     onClearCanvas 
 }) {
+    // Initialize real-time connection to listen for incoming DesktopCallEvent (e.g., from 'Call iOS' button on desktop)
+    useWorkflowRealtime(workflow?.id);
+
     const handleCallButtonClick = async () => {
         console.log('📞 Call button clicked - starting enhanced debugging...');
         
@@ -89,7 +93,7 @@ function MobileWorkflowControls({
                         title="Show mock call screen (works in simulator)"
                     >
                         <PhoneCall size={16} />
-                        <span className="text-sm font-medium">Mock Call</span>
+                        <span className="text-sm font-medium">Call</span>
                     </button>
                 </div>
             </div>

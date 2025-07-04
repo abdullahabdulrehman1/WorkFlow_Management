@@ -4,6 +4,8 @@ import Echo from 'laravel-echo';
 import axios from 'axios';
 import desktopCallService from '../../services/DesktopCallService';
 import { WindowsNotificationUtil } from '../../utils/WindowsNotification';
+import { Capacitor } from '@capacitor/core';
+import { CallPlugin } from '../../utils/iOSSimpleCall';
 
 // Custom hook for managing Reverb real-time connections
 export const useWorkflowRealtime = (workflowId) => {
@@ -35,6 +37,11 @@ export const useWorkflowRealtime = (workflowId) => {
         else deviceName = `${browser} Browser`;
         
         return { deviceName, browser: userAgent };
+    };
+
+    // Helper function to check if current device is iOS native
+    const isIOSDevice = () => {
+        return typeof Capacitor !== 'undefined' && Capacitor.getPlatform() === 'ios' && Capacitor.isNativePlatform();
     };
 
     // Initialize connection when workflow ID changes
@@ -280,6 +287,32 @@ export const useWorkflowRealtime = (workflowId) => {
     const handleIncomingDesktopCall = async (callEvent) => {
         console.log('📞 Handling incoming desktop call:', callEvent);
 
+        const targetDevices = callEvent.callData?.targetDevices || 'all';
+
+        // If the call targets only iOS devices
+        if (targetDevices === 'ios') {
+            // Show mock call screen only on iOS devices
+            if (isIOSDevice()) {
+                try {
+                    console.log('📱 Showing mock call screen (triggered from desktop)');
+                    await CallPlugin.showMockCallScreen();
+                    toast.success(`📞 Incoming call from ${callEvent.callerName}`, {
+                        duration: 8000,
+                        position: 'top-center',
+                        style: {
+                            background: '#10b981',
+                            color: 'white',
+                            fontSize: '16px',
+                        },
+                    });
+                } catch (error) {
+                    console.error('❌ Error showing mock call screen:', error);
+                }
+            }
+            // Do not execute further desktop/Electron logic for iOS-only calls on non-iOS devices
+            return;
+        }
+
         // In Electron, use the main process notification to play ringtone
         if (typeof window !== 'undefined' && window.electron && window.electron.notifications && window.electron.notifications.showCallNotification) {
             await window.electron.notifications.showCallNotification({
@@ -382,11 +415,38 @@ export const useWorkflowRealtime = (workflowId) => {
         }
     };
 
+    // Function to start iOS call
+    const startIOSCall = async () => {
+        if (!workflowId) {
+            toast.error('No workflow selected');
+            return false;
+        }
+        if (!isConnected) {
+            toast.error('Not connected to real-time server');
+            return false;
+        }
+
+        const { deviceName } = getDeviceInfo();
+
+        try {
+            return await desktopCallService.startDesktopCall(
+                workflowId,
+                'ios', // Target only iOS devices
+                deviceName,
+                'voice'
+            );
+        } catch (error) {
+            console.error('❌ Error starting iOS call:', error);
+            return false;
+        }
+    };
+
     return {
         connectedDevices,
         isConnected,
         connectionId: connectionId.current,
         sendBroadcastMessage,
-        startDesktopCall
+        startDesktopCall,
+        startIOSCall
     };
 };
