@@ -5,7 +5,7 @@ import { router } from '@inertiajs/react';
 import { toast } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import SaveIndicator from '../SaveIndicator';
-import iosCallService from '../../utils/IOSCallService';
+import { CallPlugin } from '../../utils/iOSSimpleCall';
 
 function MobileWorkflowControls({ 
     workflow, 
@@ -19,66 +19,21 @@ function MobileWorkflowControls({
         console.log('📞 Call button clicked - starting enhanced debugging...');
         
         try {
-            // Get detailed debug information first
-            const debugInfo = await iosCallService.getDebugInfo();
-            console.log('🔍 Detailed debug info:', debugInfo);
-            
-            // Show debug info in toast for immediate feedback
-            toast.loading(`Platform: ${debugInfo.platform}, Native: ${debugInfo.isNative}, Plugin: ${debugInfo.pluginAvailable}`, {
-                duration: 3000
-            });
-            
-            // Check if CallKit is available
-            if (!iosCallService.isAvailable()) {
-                const errorMsg = `CallKit not available. Platform: ${debugInfo.platform}, Native: ${debugInfo.isNative}, iOS: ${debugInfo.isIOS}, Plugin: ${debugInfo.pluginAvailable}`;
-                console.error('❌', errorMsg);
-                
-                // Show detailed error to user
-                toast.error(`Failed: ${errorMsg}`, {
-                    duration: 5000
-                });
-                
-                // Also show available plugins for debugging
-                console.log('Available plugins:', debugInfo.availablePlugins);
+            if (Capacitor.getPlatform() !== 'ios' || !Capacitor.isNativePlatform()) {
+                toast.error('This feature works only on iOS device/simulator');
                 return;
             }
             
-            // Try to show the call screen
-            console.log('📞 Attempting to show iOS call screen...');
-            const success = await iosCallService.testCallScreen();
+            // Use mock call screen (works in simulator!)
+            await CallPlugin.showMockCallScreen();
+            toast.success('Mock call screen shown');
             
-            if (success) {
-                toast.success('✅ Native iOS call screen should be visible!', {
-                    duration: 3000
-                });
-                console.log('✅ Call screen shown successfully');
-            } else {
-                toast.error('❌ Failed to show call screen', {
-                    duration: 4000
-                });
-                console.error('❌ Call screen failed to show');
-            }
+            // Uncomment this line if you want to test real CallKit on physical device:
+            // await CallPlugin.showTestCall();
             
-        } catch (error) {
-            console.error('❌ Call button error:', error);
-            
-            // Extract useful error information
-            const errorDetails = {
-                message: error.message,
-                name: error.name,
-                stack: error.stack?.split('\n')[0] // First line of stack
-            };
-            
-            console.error('Error details:', errorDetails);
-            
-            // Show user-friendly error message
-            const userMessage = error.message.includes('not available') 
-                ? 'iOS CallKit plugin not found. Please check console for details.'
-                : `Plugin error: ${error.message}`;
-                
-            toast.error(`❌ ${userMessage}`, {
-                duration: 6000
-            });
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to show call screen');
         }
     };
 
@@ -131,10 +86,10 @@ function MobileWorkflowControls({
                     <button 
                         onClick={handleCallButtonClick}
                         className='bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-md transition-colors duration-200'
-                        title="Show native iOS call screen"
+                        title="Show mock call screen (works in simulator)"
                     >
                         <PhoneCall size={16} />
-                        <span className="text-sm font-medium">Call</span>
+                        <span className="text-sm font-medium">Mock Call</span>
                     </button>
                 </div>
             </div>
