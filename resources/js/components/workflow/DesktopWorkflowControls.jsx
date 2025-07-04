@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Switch } from '@headlessui/react';
 import { router } from '@inertiajs/react';
+import { PhoneCall, Monitor } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import SaveIndicator from '../SaveIndicator';
+import { useWorkflowRealtime } from './useWorkflowRealtime';
 
 function DesktopWorkflowControls({ 
     workflow, 
@@ -11,6 +14,49 @@ function DesktopWorkflowControls({
     onSave, 
     onClearCanvas 
 }) {
+    const [isCallingDesktop, setIsCallingDesktop] = useState(false);
+    
+    // Use the existing real-time hook for desktop call functionality
+    const { startDesktopCall, isConnected } = useWorkflowRealtime(workflow?.id);
+
+    const handleDesktopCall = async () => {
+        if (!workflow?.id) {
+            toast.error('No workflow selected for desktop call');
+            return;
+        }
+
+        if (!isConnected) {
+            toast.error('Not connected to real-time server. Please refresh and try again.');
+            return;
+        }
+
+        setIsCallingDesktop(true);
+
+        try {
+            // Get device/user info for caller name
+            const callerName = workflow?.name ? `${workflow.name} Workflow` : 'Desktop Call';
+            
+            // Start the desktop call using existing service
+            const success = await startDesktopCall('voice'); // Default to voice call
+            
+            if (success) {
+                toast.success('📞 Desktop call initiated! Check connected Electron apps.', {
+                    duration: 5000,
+                    position: 'top-center',
+                    style: {
+                        background: '#10b981',
+                        color: 'white',
+                    },
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error starting desktop call:', error);
+            toast.error('Failed to initiate desktop call: ' + error.message);
+        } finally {
+            setIsCallingDesktop(false);
+        }
+    };
+
     return (
         <div className='flex justify-between items-center mb-4'>
             <div className='flex gap-4 items-center'>
@@ -52,6 +98,38 @@ function DesktopWorkflowControls({
                 )}
             </div>
             <div className='flex gap-2'>
+                {/* Desktop Call Button */}
+                <button 
+                    onClick={handleDesktopCall}
+                    disabled={isCallingDesktop || !isConnected}
+                    className={`
+                        flex items-center gap-2 px-4 py-1 rounded-full text-sm font-medium transition-all duration-200
+                        ${isCallingDesktop 
+                            ? 'bg-green-400 text-white cursor-not-allowed' 
+                            : !isConnected
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-500 hover:bg-green-600 text-white shadow-md hover:shadow-lg'
+                        }
+                    `}
+                    title={
+                        !isConnected 
+                            ? 'Not connected to real-time server' 
+                            : 'Call Desktop - Broadcast call to Electron apps via Laravel Reverb'
+                    }
+                >
+                    {isCallingDesktop ? (
+                        <>
+                            <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                            Calling...
+                        </>
+                    ) : (
+                        <>
+                            <Monitor size={14} />
+                            Call Desktop
+                        </>
+                    )}
+                </button>
+
                 {/* Action Buttons */}
                 <button 
                     className='border px-4 py-1 rounded-full text-sm font-medium'
