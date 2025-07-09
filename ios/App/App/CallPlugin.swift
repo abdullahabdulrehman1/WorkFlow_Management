@@ -3,258 +3,9 @@ import Capacitor
 import UserNotifications
 import UIKit
 
-// MARK: - Custom Call Screen Controller
-
-class CustomCallScreenViewController: UIViewController {
-    
-    // MARK: - UI Elements
-    private let backgroundImageView = UIImageView()
-    private let callerNameLabel = UILabel()
-    private let callerStatusLabel = UILabel()
-    private let callerAvatarImageView = UIImageView()
-    
-    private let acceptButton = UIButton(type: .custom)
-    private let declineButton = UIButton(type: .custom)
-    private let buttonStackView = UIStackView()
-    
-    // MARK: - Properties
-    var callerName: String = "Unknown Caller"
-    var callerId: String = "unknown"
-    var callType: String = "voice"
-    var onAccept: (() -> Void)?
-    var onDecline: (() -> Void)?
-    
-    // MARK: - Lifecycle
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupUI()
-        setupConstraints()
-        startRingingAnimation()
-    }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Hide navigation bar for full screen effect
-        navigationController?.setNavigationBarHidden(true, animated: animated)
-    }
-    
-    // MARK: - UI Setup
-    private func setupUI() {
-        view.backgroundColor = UIColor.black
-        
-        // Background with gradient
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = [
-            UIColor(red: 0.1, green: 0.1, blue: 0.2, alpha: 1.0).cgColor,
-            UIColor.black.cgColor
-        ]
-        gradientLayer.locations = [0.0, 1.0]
-        gradientLayer.frame = view.bounds
-        view.layer.insertSublayer(gradientLayer, at: 0)
-        
-        // Caller Avatar
-        callerAvatarImageView.contentMode = .scaleAspectFill
-        callerAvatarImageView.layer.cornerRadius = 80
-        callerAvatarImageView.layer.masksToBounds = true
-        callerAvatarImageView.backgroundColor = UIColor.systemBlue
-        callerAvatarImageView.image = createAvatarImage(with: String(callerName.prefix(1)).uppercased())
-        
-        // Caller Name
-        callerNameLabel.text = callerName
-        callerNameLabel.textColor = .white
-        callerNameLabel.font = UIFont.systemFont(ofSize: 28, weight: .medium)
-        callerNameLabel.textAlignment = .center
-        callerNameLabel.numberOfLines = 2
-        
-        // Caller Status
-        callerStatusLabel.text = callType == "video" ? "incoming video call" : "incoming call"
-        callerStatusLabel.textColor = UIColor.lightGray
-        callerStatusLabel.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        callerStatusLabel.textAlignment = .center
-        
-        // Accept Button (Green)
-        acceptButton.backgroundColor = UIColor.systemGreen
-        acceptButton.setTitle("Accept", for: .normal)
-        acceptButton.setTitleColor(.white, for: .normal)
-        acceptButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
-        acceptButton.layer.cornerRadius = 35
-        acceptButton.addTarget(self, action: #selector(acceptButtonTapped), for: .touchUpInside)
-        
-        // Decline Button (Red)
-        declineButton.backgroundColor = UIColor.systemRed
-        declineButton.setTitle("Decline", for: .normal)
-        declineButton.setTitleColor(.white, for: .normal)
-        declineButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
-        declineButton.layer.cornerRadius = 35
-        declineButton.addTarget(self, action: #selector(declineButtonTapped), for: .touchUpInside)
-        
-        // Button Stack
-        buttonStackView.axis = .horizontal
-        buttonStackView.distribution = .fillEqually
-        buttonStackView.spacing = 60
-        buttonStackView.addArrangedSubview(declineButton)
-        buttonStackView.addArrangedSubview(acceptButton)
-        
-        // Add to view
-        [callerAvatarImageView, callerNameLabel, callerStatusLabel, buttonStackView].forEach {
-            $0.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview($0)
-        }
-    }
-    
-    private func setupConstraints() {
-        NSLayoutConstraint.activate([
-            // Caller Avatar
-            callerAvatarImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            callerAvatarImageView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 80),
-            callerAvatarImageView.widthAnchor.constraint(equalToConstant: 160),
-            callerAvatarImageView.heightAnchor.constraint(equalToConstant: 160),
-            
-            // Caller Name
-            callerNameLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            callerNameLabel.topAnchor.constraint(equalTo: callerAvatarImageView.bottomAnchor, constant: 30),
-            callerNameLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
-            callerNameLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
-            
-            // Caller Status
-            callerStatusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            callerStatusLabel.topAnchor.constraint(equalTo: callerNameLabel.bottomAnchor, constant: 10),
-            
-            // Button Stack
-            buttonStackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            buttonStackView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -50),
-            buttonStackView.heightAnchor.constraint(equalToConstant: 70),
-            buttonStackView.widthAnchor.constraint(equalToConstant: 200),
-            
-            // Individual button constraints
-            acceptButton.heightAnchor.constraint(equalToConstant: 70),
-            acceptButton.widthAnchor.constraint(equalToConstant: 70),
-            declineButton.heightAnchor.constraint(equalToConstant: 70),
-            declineButton.widthAnchor.constraint(equalToConstant: 70)
-        ])
-    }
-    
-    // MARK: - Avatar Creation
-    private func createAvatarImage(with initial: String) -> UIImage? {
-        let size = CGSize(width: 160, height: 160)
-        UIGraphicsBeginImageContextWithOptions(size, false, 0)
-        defer { UIGraphicsEndImageContext() }
-        
-        let context = UIGraphicsGetCurrentContext()
-        
-        // Draw background circle
-        context?.setFillColor(UIColor.systemBlue.cgColor)
-        context?.fillEllipse(in: CGRect(origin: .zero, size: size))
-        
-        // Draw initial
-        let font = UIFont.systemFont(ofSize: 60, weight: .medium)
-        let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.white
-        ]
-        
-        let textSize = initial.size(withAttributes: textAttributes)
-        let textRect = CGRect(
-            x: (size.width - textSize.width) / 2,
-            y: (size.height - textSize.height) / 2,
-            width: textSize.width,
-            height: textSize.height
-        )
-        
-        initial.draw(in: textRect, withAttributes: textAttributes)
-        
-        return UIGraphicsGetImageFromCurrentImageContext()
-    }
-    
-    // MARK: - Animations
-    private func startRingingAnimation() {
-        // Pulse animation for avatar
-        let pulseAnimation = CABasicAnimation(keyPath: "transform.scale")
-        pulseAnimation.duration = 1.0
-        pulseAnimation.fromValue = 1.0
-        pulseAnimation.toValue = 1.05
-        pulseAnimation.autoreverses = true
-        pulseAnimation.repeatCount = .infinity
-        callerAvatarImageView.layer.add(pulseAnimation, forKey: "pulse")
-        
-        // Bounce animation for buttons
-        UIView.animate(withDuration: 0.6, delay: 0.3, options: [.repeat, .autoreverse], animations: {
-            self.buttonStackView.transform = CGAffineTransform(scaleX: 1.05, y: 1.05)
-        }, completion: nil)
-    }
-    
-    // MARK: - Button Actions
-    @objc private func acceptButtonTapped() {
-        print("📞 [CustomCallScreen] ✅ Accept button tapped")
-        
-        // Stop animations
-        stopAnimations()
-        
-        // Animate button press
-        UIView.animate(withDuration: 0.1, animations: {
-            self.acceptButton.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
-        }) { _ in
-            UIView.animate(withDuration: 0.1) {
-                self.acceptButton.transform = .identity
-            }
-        }
-        
-        // Call the accept callback
-        onAccept?()
-        
-        // Dismiss after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.dismiss(animated: true)
-        }
-    }
-    
-    @objc private func declineButtonTapped() {
-        print("📞 [CustomCallScreen] ❌ Decline button tapped")
-        
-        // Stop animations
-        stopAnimations()
-        
-        // Animate button press
-        UIView.animate(withDuration: 0.1, animations: {
-            self.declineButton.transform = CGAffineTransform(scaleX: 0.95, y: 0.95)
-        }) { _ in
-            UIView.animate(withDuration: 0.1) {
-                self.declineButton.transform = .identity
-            }
-        }
-        
-        // Call the decline callback
-        onDecline?()
-        
-        // Dismiss immediately
-        dismiss(animated: true)
-    }
-    
-    private func stopAnimations() {
-        callerAvatarImageView.layer.removeAllAnimations()
-        buttonStackView.layer.removeAllAnimations()
-        view.layer.removeAllAnimations()
-    }
-    
-    // MARK: - Public Methods
-    func updateCallInfo(callerName: String, callerId: String, callType: String) {
-        self.callerName = callerName
-        self.callerId = callerId
-        self.callType = callType
-        
-        if isViewLoaded {
-            callerNameLabel.text = callerName
-            callerStatusLabel.text = callType == "video" ? "incoming video call" : "incoming call"
-            callerAvatarImageView.image = createAvatarImage(with: String(callerName.prefix(1)).uppercased())
-        }
-    }
-}
-
-// MARK: - CallPlugin
-
 /**
- * CallPlugin for showing native iOS call interface via CallKit
- * Integrates with CallKitManager for WhatsApp-style native call screens
+ * CallPlugin for showing native iOS CallKit interface
+ * Clean implementation focused purely on CallKit functionality
  */
 @objc(CallPlugin)
 public class CallPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -267,8 +18,6 @@ public class CallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "showCallNotification", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "hideCallNotification", returnType: CAPPluginReturnPromise)
     ]
-    
-    private var customCallScreen: CustomCallScreenViewController?
 
     public override init() {
         super.init()
@@ -284,7 +33,7 @@ public class CallPlugin: CAPPlugin, CAPBridgedPlugin {
     // MARK: - CallKit Methods
     
     /**
-     * Start a call - shows native iOS CallKit interface with custom fallback
+     * Start a call - shows native iOS CallKit interface
      */
     @objc func startCall(_ call: CAPPluginCall) {
         print("📞 [CallPlugin] startCall called")
@@ -296,83 +45,16 @@ public class CallPlugin: CAPPlugin, CAPBridgedPlugin {
         print("📞 [CallPlugin] Starting call to: \(callerName) (\(callerId)), type: \(callType)")
         
         DispatchQueue.main.async {
-            // Try CallKit first (for real devices)
-            let isVideo = (callType == "video" || callType == "video")
+            // Use CallKitManager to show native incoming call interface
+            let isVideo = (callType == "video")
+            CallKitManager.shared.showIncomingCall(callerName: callerName, callerId: callerId, isVideo: isVideo)
             
-            do {
-                print("📞 [CallPlugin] 🎯 Attempting CallKit first...")
-                CallKitManager.shared.showIncomingCall(callerName: callerName, callerId: callerId, isVideo: isVideo)
-                
-                // Give CallKit a moment to initialize
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    // Check if CallKit worked by seeing if we have an active call
-                    // For now, we'll always show our custom screen as well for simulator compatibility
-                    print("📞 [CallPlugin] 🎨 Also showing custom call screen for simulator compatibility...")
-                    self.showCustomCallScreen(callerName: callerName, callerId: callerId, callType: callType)
-                }
-                
-                call.resolve([
-                    "success": true,
-                    "callId": UUID().uuidString,
-                    "platform": "ios-callkit-with-custom-fallback",
-                    "message": "CallKit attempted, custom screen shown for compatibility"
-                ])
-                
-            } catch {
-                print("📞 [CallPlugin] ❌ CallKit failed, showing custom screen: \(error)")
-                self.showCustomCallScreen(callerName: callerName, callerId: callerId, callType: callType)
-                
-                call.resolve([
-                    "success": true,
-                    "callId": UUID().uuidString,
-                    "platform": "ios-custom-screen",
-                    "message": "Custom call screen shown (CallKit unavailable)"
-                ])
-            }
-        }
-    }
-    
-    // MARK: - Custom Call Screen Methods
-    
-    private func showCustomCallScreen(callerName: String, callerId: String, callType: String) {
-        print("📞 [CallPlugin] 🎨 Showing custom call screen for: \(callerName)")
-        
-        guard let rootViewController = UIApplication.shared.windows.first?.rootViewController else {
-            print("❌ [CallPlugin] Could not get root view controller")
-            return
-        }
-        
-        // Dismiss any existing custom call screen
-        if let existingScreen = customCallScreen {
-            existingScreen.dismiss(animated: false)
-            customCallScreen = nil
-        }
-        
-        // Create new custom call screen
-        customCallScreen = CustomCallScreenViewController()
-        customCallScreen?.updateCallInfo(callerName: callerName, callerId: callerId, callType: callType)
-        
-        // Set up callbacks
-        customCallScreen?.onAccept = {
-            print("📞 [CallPlugin] ✅ Custom call screen - Accept button tapped")
-            // Here you could trigger actual call logic
-            self.customCallScreen?.dismiss(animated: true)
-            self.customCallScreen = nil
-        }
-        
-        customCallScreen?.onDecline = {
-            print("📞 [CallPlugin] ❌ Custom call screen - Decline button tapped")
-            // Here you could trigger call rejection logic
-            self.customCallScreen?.dismiss(animated: true)
-            self.customCallScreen = nil
-        }
-        
-        // Present the call screen modally (full screen)
-        customCallScreen?.modalPresentationStyle = .fullScreen
-        customCallScreen?.modalTransitionStyle = .crossDissolve
-        
-        rootViewController.present(customCallScreen!, animated: true) {
-            print("📞 [CallPlugin] ✅ Custom call screen presented successfully")
+            call.resolve([
+                "success": true,
+                "callId": UUID().uuidString,
+                "platform": "ios-callkit",
+                "message": "Native iOS CallKit screen triggered"
+            ])
         }
     }
     
@@ -383,13 +65,6 @@ public class CallPlugin: CAPPlugin, CAPBridgedPlugin {
         print("📞 [CallPlugin] endCall called")
         
         DispatchQueue.main.async {
-            // Dismiss custom call screen if showing
-            if let existingScreen = self.customCallScreen {
-                existingScreen.dismiss(animated: true)
-                self.customCallScreen = nil
-                print("📞 [CallPlugin] Custom call screen dismissed")
-            }
-            
             // In a real implementation, you would end the actual call here
             // For now, we'll just acknowledge the end call request
             
