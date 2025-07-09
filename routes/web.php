@@ -7,6 +7,7 @@ use App\Events\TestBroadcast;
 use App\Events\WorkflowEvent;
 use App\Events\DesktopCallEvent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -68,6 +69,146 @@ Route::get('/api/firebase/config/check', [PushNotificationController::class, 'ch
 
 // Call notification route - Notify ALL users (simplified)
 Route::post('/api/calls/notify', [PushNotificationController::class, 'sendCallNotificationToAll']);
+
+// iOS CallKit notification route - Send push notifications that trigger CallKit
+Route::post('/api/calls/ios-notify', [PushNotificationController::class, 'sendIOSCallNotification']);
+
+// Debug route to test FCM CallKit flow step by step
+Route::post('/api/debug/ios-call-test', function (Request $request) {
+    try {
+        Log::info('🧪 [DEBUG] iOS Call Test Started');
+        
+        // Step 1: Check if we have iOS tokens
+        $iosTokens = \App\Models\PushSubscription::where('content_encoding', 'aes128gcm')
+            ->where('platform', 'ios')
+            ->where('endpoint', 'like', 'https://fcm.googleapis.com/fcm/send/%')
+            ->get();
+        
+        Log::info('🧪 [DEBUG] Found iOS tokens', ['count' => $iosTokens->count()]);
+        
+        if ($iosTokens->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'step' => 'token_check',
+                'message' => 'No iOS FCM tokens found in database',
+                'debug' => [
+                    'total_aes128gcm_tokens' => \App\Models\PushSubscription::where('content_encoding', 'aes128gcm')->count(),
+                    'total_fcm_tokens' => \App\Models\PushSubscription::where('content_encoding', 'fcm')->count(),
+                    'platforms' => \App\Models\PushSubscription::where('content_encoding', 'aes128gcm')->pluck('platform')->unique(),
+                    'sample_endpoints' => \App\Models\PushSubscription::where('content_encoding', 'aes128gcm')->pluck('endpoint')->take(3)
+                ]
+            ]);
+        }
+        
+        // Step 2: Check Firebase config
+        $firebaseConfigPath = base_path('firebase-credentials.json');
+        if (!file_exists($firebaseConfigPath)) {
+            Log::error('🧪 [DEBUG] Firebase config missing');
+            return response()->json([
+                'success' => false,
+                'step' => 'firebase_config',
+                'message' => 'Firebase credentials file not found',
+                'path' => $firebaseConfigPath
+            ]);
+        }
+        
+        Log::info('🧪 [DEBUG] Firebase config exists');
+        
+        // Step 3: Try to send FCM notification
+        $firebase = (new \Kreait\Firebase\Factory)
+            ->withServiceAccount($firebaseConfigPath)
+            ->createMessaging();
+        
+        $testCallerName = $request->input('caller_name', 'Debug Test Call');
+        $testCallId = 'debug-' . time();
+        
+        $sentCount = 0;
+        $errors = [];
+        
+        foreach ($iosTokens as $subscription) {
+            try {
+                // Extract FCM token from the full endpoint URL
+                $fcmToken = str_replace('https://fcm.googleapis.com/fcm/send/', '', $subscription->endpoint);
+                
+                Log::info('🧪 [DEBUG] Sending to iOS device', [
+                    'device_id' => $subscription->device_id,
+                    'token_preview' => substr($fcmToken, 0, 20) . '...'
+                ]);
+                
+                $message = \Kreait\Firebase\Messaging\CloudMessage::withTarget('token', $fcmToken)
+                    ->withNotification(\Kreait\Firebase\Messaging\Notification::create(
+                        'Incoming Call from ' . $testCallerName,
+                        'Tap to answer the call'
+                    ))
+                    ->withData([
+                        'type' => 'ios_call',
+                        'callType' => 'voice',
+                        'callerId' => 'debug_caller',
+                        'callerName' => $testCallerName,
+                        'callId' => $testCallId,
+                        'timestamp' => now()->toISOString(),
+                        'triggerCallKit' => 'true'
+                    ])
+                    ->withApnsConfig([
+                        'headers' => [
+                            'apns-priority' => '10',
+                            'apns-push-type' => 'alert'
+                        ],
+                        'payload' => [
+                            'aps' => [
+                                'alert' => [
+                                    'title' => 'Incoming Call from ' . $testCallerName,
+                                    'body' => 'Tap to answer the call'
+                                ],
+                                'sound' => 'default',
+                                'badge' => 1,
+                                'mutable-content' => 1
+                            ],
+                            'type' => 'ios_call',
+                            'callType' => 'voice',
+                            'callerId' => 'debug_caller',
+                            'callerName' => $testCallerName,
+                            'callId' => $testCallId,
+                            'triggerCallKit' => 'true'
+                        ]
+                    ]);
+
+                $result = $firebase->send($message);
+                $sentCount++;
+                Log::info('🧪 [DEBUG] FCM sent successfully', ['result' => $result]);
+                
+            } catch (Exception $e) {
+                $error = $e->getMessage();
+                $errors[] = $error;
+                Log::error('🧪 [DEBUG] FCM send failed', ['error' => $error]);
+            }
+        }
+        
+        return response()->json([
+            'success' => $sentCount > 0,
+            'step' => 'fcm_send',
+            'message' => $sentCount > 0 ? 'FCM notifications sent successfully' : 'All FCM sends failed',
+            'debug' => [
+                'sent_count' => $sentCount,
+                'total_tokens' => $iosTokens->count(),
+                'errors' => $errors,
+                'test_data' => [
+                    'caller_name' => $testCallerName,
+                    'call_id' => $testCallId
+                ]
+            ]
+        ]);
+        
+    } catch (Exception $e) {
+        Log::error('🧪 [DEBUG] Test failed', ['error' => $e->getMessage()]);
+        return response()->json([
+            'success' => false,
+            'step' => 'general_error',
+            'message' => 'Test failed: ' . $e->getMessage(),
+            'error' => $e->getMessage()
+        ]);
+    }
+});
 
 // Quick test notification route
 Route::get('/api/test-notification', function() {

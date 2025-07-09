@@ -78,7 +78,9 @@ class PushNotificationController extends Controller
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
             'device_id' => 'string|nullable',
-            'platform' => 'string|nullable'
+            'platform' => 'string|nullable',
+            'public_key' => 'string|nullable',
+            'auth_token' => 'string|nullable'
         ]);
 
         if ($validator->fails()) {
@@ -89,35 +91,37 @@ class PushNotificationController extends Controller
         }
 
         try {
-            // Check if this is coming from dev routes
             $isDevelopment = str_contains($request->getPathInfo(), '/dev-api/');
-            
-            // Get user ID (if authenticated) or use a testing user ID in development
             $userId = null;
-            
             if (auth()->check()) {
                 $userId = auth()->id();
             } elseif ($isDevelopment) {
-                // Use a fake user ID for testing in development
-                $userId = $request->input('user_id', 1); // Default to ID 1 for testing
+                $userId = $request->input('user_id', 1);
                 Log::info('Development FCM token registration with test user ID: ' . $userId);
             }
+
+            // Format FCM token as proper web push endpoint
+            $fcmToken = $request->token;
+            $endpoint = "https://fcm.googleapis.com/fcm/send/" . $fcmToken;
             
-            // Delete existing tokens for this device to avoid duplicates
-            if ($request->has('device_id')) {
-                PushSubscription::where([
-                    'device_id' => $request->device_id,
-                ])->delete();
-            }
-            
-            // Store as a special type of subscription
-            PushSubscription::create([
-                'endpoint' => $request->token, // Store FCM token as the endpoint
-                'user_id' => $userId,
-                'device_id' => $request->device_id ?? null,
-                'platform' => $request->platform ?? 'android',
-                'content_encoding' => 'fcm' // Mark this as an FCM subscription
+            Log::info('Storing FCM token with web push format', [
+                'platform' => $request->platform,
+                'device_id' => $request->device_id,
+                'endpoint' => $endpoint
             ]);
+
+            // Upsert: update if exists, otherwise create
+            PushSubscription::updateOrCreate(
+                ['endpoint' => $endpoint],
+                [
+                    'user_id' => $userId,
+                    'device_id' => $request->device_id ?? null,
+                    'platform' => $request->platform ?? 'android',
+                    'content_encoding' => 'aes128gcm',
+                    'public_key' => $request->public_key ?? null,
+                    'auth_token' => $request->auth_token ?? null
+                ]
+            );
 
             return response()->json(['success' => true]);
         } catch (Exception $e) {
@@ -125,7 +129,6 @@ class PushNotificationController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
-            
             return response()->json([
                 'success' => false, 
                 'error' => $e->getMessage()
@@ -520,6 +523,186 @@ class PushNotificationController extends Controller
             ]);
 
         } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send iOS CallKit notification via FCM
+     * This sends a push notification specifically designed to trigger CallKit on iOS devices
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendIOSCallNotification(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'caller_name' => 'required|string|max:255',
+            'caller_id' => 'string|nullable',
+            'call_type' => 'string|in:voice,video|nullable',
+            'call_id' => 'string|nullable',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $callerName = $request->caller_name;
+            $callerId = $request->caller_id ?? 'unknown';
+            $callType = $request->call_type ?? 'voice';
+            $callId = $request->call_id ?? uniqid('ios-call-');
+
+            Log::info('Sending iOS CallKit notification', [
+                'caller_name' => $callerName,
+                'caller_id' => $callerId,
+                'call_type' => $callType,
+                'call_id' => $callId
+            ]);
+
+            // Find FCM tokens for iOS devices specifically
+            $iosSubscriptions = PushSubscription::where('content_encoding', 'aes128gcm')
+                ->where('platform', 'ios')
+                ->where('endpoint', 'like', 'https://fcm.googleapis.com/fcm/send/%')
+                ->get();
+
+            if ($iosSubscriptions->isEmpty()) {
+                Log::warning('No iOS FCM tokens found for call notification');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No iOS devices found for call notification',
+                    'debug' => [
+                        'total_aes128gcm_tokens' => PushSubscription::where('content_encoding', 'aes128gcm')->count(),
+                        'platforms' => PushSubscription::where('content_encoding', 'aes128gcm')->pluck('platform')->unique()
+                    ]
+                ], 404);
+            }
+
+            // Create Firebase messaging instance
+            $firebaseConfigPath = base_path('firebase-credentials.json');
+            if (!file_exists($firebaseConfigPath)) {
+                Log::error('Firebase credentials file not found', ['path' => $firebaseConfigPath]);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Firebase configuration not found'
+                ], 500);
+            }
+
+            $firebase = (new Factory)
+                ->withServiceAccount($firebaseConfigPath)
+                ->createMessaging();
+
+            $sentCount = 0;
+            $failedCount = 0;
+            $errors = [];
+
+            foreach ($iosSubscriptions as $subscription) {
+                try {
+                    // Extract FCM token from the full endpoint URL
+                    $fcmToken = str_replace('https://fcm.googleapis.com/fcm/send/', '', $subscription->endpoint);
+                    
+                    Log::info('Sending FCM to iOS device', [
+                        'device_id' => $subscription->device_id,
+                        'token_preview' => substr($fcmToken, 0, 20) . '...'
+                    ]);
+                    
+                    // Create iOS-specific push notification data for CallKit
+                    $message = CloudMessage::withTarget('token', $fcmToken)
+                        ->withNotification(FirebaseNotification::create(
+                            'Incoming Call from ' . $callerName,
+                            'Tap to answer the call'
+                        ))
+                        ->withData([
+                            'type' => 'ios_call',
+                            'callType' => $callType,
+                            'callerId' => $callerId,
+                            'callerName' => $callerName,
+                            'callId' => $callId,
+                            'timestamp' => now()->toISOString(),
+                            'triggerCallKit' => 'true'
+                        ])
+                        ->withApnsConfig([
+                            'headers' => [
+                                'apns-priority' => '10',
+                                'apns-push-type' => 'alert'
+                            ],
+                            'payload' => [
+                                'aps' => [
+                                    'alert' => [
+                                        'title' => 'Incoming Call from ' . $callerName,
+                                        'body' => 'Tap to answer the call'
+                                    ],
+                                    'sound' => 'default',
+                                    'badge' => 1,
+                                    'mutable-content' => 1,
+                                    'category' => 'CALL_CATEGORY'
+                                ],
+                                'type' => 'ios_call',
+                                'callType' => $callType,
+                                'callerId' => $callerId,
+                                'callerName' => $callerName,
+                                'callId' => $callId,
+                                'triggerCallKit' => 'true'
+                            ]
+                        ]);
+
+                    $firebase->send($message);
+                    $sentCount++;
+                    Log::info('iOS call notification sent successfully', [
+                        'device_id' => $subscription->device_id,
+                        'endpoint' => substr($subscription->endpoint, 0, 20) . '...'
+                    ]);
+
+                } catch (Exception $e) {
+                    $failedCount++;
+                    $errorMessage = $e->getMessage();
+                    $errors[] = $errorMessage;
+                    
+                    Log::error('Failed to send iOS call notification', [
+                        'device_id' => $subscription->device_id,
+                        'error' => $errorMessage,
+                        'endpoint' => substr($subscription->endpoint, 0, 20) . '...'
+                    ]);
+
+                    // Clean up invalid tokens
+                    if (strpos($errorMessage, 'registration-token-not-registered') !== false ||
+                        strpos($errorMessage, 'invalid-registration-token') !== false) {
+                        Log::info('Removing invalid FCM token', ['endpoint' => $subscription->endpoint]);
+                        $subscription->delete();
+                    }
+                }
+            }
+
+            $response = [
+                'success' => $sentCount > 0,
+                'call_id' => $callId,
+                'sent_count' => $sentCount,
+                'failed_count' => $failedCount,
+                'total_ios_devices' => $iosSubscriptions->count(),
+                'message' => "iOS CallKit notification: $sentCount sent, $failedCount failed"
+            ];
+
+            if ($failedCount > 0) {
+                $response['errors'] = $errors;
+            }
+
+            Log::info('iOS call notification summary', $response);
+
+            return response()->json($response);
+
+        } catch (Exception $e) {
+            Log::error('iOS call notification error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'error' => $e->getMessage()

@@ -5,41 +5,24 @@ import { router } from '@inertiajs/react';
 import { toast } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import SaveIndicator from '../SaveIndicator';
-import { CallPlugin } from '../../utils/iOSSimpleCall';
+import { handleCallButtonClick } from '../../utils/iOSSimpleCall';
 import { useWorkflowRealtime } from './useWorkflowRealtime';
 
-function MobileWorkflowControls({ 
+export default function MobileWorkflowControls({ 
     workflow, 
-    isDraftOpen, 
-    setIsDraftOpen, 
-    justSaved, 
     onSave, 
-    onClearCanvas 
+    onRun, 
+    onTest, 
+    isRunning, 
+    isTesting, 
+    testProgress,
+    onClearCanvas,
+    isDraftOpen,
+    setIsDraftOpen,
+    justSaved
 }) {
     // Initialize real-time connection to listen for incoming DesktopCallEvent (e.g., from 'Call iOS' button on desktop)
     useWorkflowRealtime(workflow?.id);
-
-    const handleCallButtonClick = async () => {
-        console.log('📞 Call button clicked - starting enhanced debugging...');
-        
-        try {
-            if (Capacitor.getPlatform() !== 'ios' || !Capacitor.isNativePlatform()) {
-                toast.error('This feature works only on iOS device/simulator');
-                return;
-            }
-            
-            // Use mock call screen (works in simulator!)
-            await CallPlugin.showMockCallScreen();
-            toast.success('Mock call screen shown');
-            
-            // Uncomment this line if you want to test real CallKit on physical device:
-            // await CallPlugin.showTestCall();
-            
-        } catch (err) {
-            console.error(err);
-            toast.error('Failed to show call screen');
-        }
-    };
 
     return (
         <div className='mb-4'>
@@ -99,24 +82,24 @@ function MobileWorkflowControls({
             </div>
 
             {/* Draft Toggle */}
-            <div className='flex justify-between items-center mt-4 p-2 bg-gray-50 rounded-lg'>
-                <span className='text-sm text-gray-700'>Draft Mode</span>
-                <Switch
-                    checked={isDraftOpen}
-                    onChange={setIsDraftOpen}
-                    className={`${
-                        isDraftOpen ? 'bg-blue-600' : 'bg-gray-200'
-                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
-                >
-                    <span
+            {(isDraftOpen !== undefined && setIsDraftOpen) && (
+                <div className='flex justify-between items-center mt-4 p-2 bg-gray-50 rounded-lg'>
+                    <span className='text-sm text-gray-700'>Draft Mode</span>
+                    <Switch
+                        checked={isDraftOpen}
+                        onChange={setIsDraftOpen}
                         className={`${
-                            isDraftOpen ? 'translate-x-6' : 'translate-x-1'
-                        } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                    />
-                </Switch>
-            </div>
+                            isDraftOpen ? 'bg-blue-600' : 'bg-gray-200'
+                        } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+                    >
+                        <span
+                            className={`${
+                                isDraftOpen ? 'translate-x-6' : 'translate-x-1'
+                            } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                        />
+                    </Switch>
+                </div>
+            )}
         </div>
     );
 }
-
-export default MobileWorkflowControls;

@@ -1,4 +1,5 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { CallPlugin } from './iOSSimpleCall'; // Import the singleton instance
 
 /**
  * iOS Call Service - Simple utility to interface with native iOS CallKit
@@ -25,61 +26,11 @@ class IOSCallService {
     }
     
     initializePlugin() {
-        try {
-            console.log('🔄 Attempting multiple plugin registration approaches...');
-            
-            // Method 1: Try registerPlugin
-            try {
-                this.callKitPlugin = registerPlugin('CallPlugin');
-                console.log('✅ Method 1: CallPlugin registered via registerPlugin');
-            } catch (error) {
-                console.log('❌ Method 1 failed:', error.message);
-            }
-            
-            // Method 2: Try accessing directly from Capacitor.Plugins
-            if (!this.callKitPlugin) {
-                try {
-                    if (Capacitor.Plugins && Capacitor.Plugins.CallPlugin) {
-                        this.callKitPlugin = Capacitor.Plugins.CallPlugin;
-                        console.log('✅ Method 2: CallPlugin found via Capacitor.Plugins');
+        if (CallPlugin) {
+            this.callKitPlugin = CallPlugin;
+            console.log('✅ CallPlugin initialized from singleton instance');
                     } else {
-                        console.log('❌ Method 2: CallPlugin not found in Capacitor.Plugins');
-                    }
-                } catch (error) {
-                    console.log('❌ Method 2 failed:', error.message);
-                }
-            }
-            
-            // Method 3: Try direct window access (last resort)
-            if (!this.callKitPlugin) {
-                try {
-                    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CallPlugin) {
-                        this.callKitPlugin = window.Capacitor.Plugins.CallPlugin;
-                        console.log('✅ Method 3: CallPlugin found via window.Capacitor.Plugins');
-                    } else {
-                        console.log('❌ Method 3: CallPlugin not found in window.Capacitor.Plugins');
-                    }
-                } catch (error) {
-                    console.log('❌ Method 3 failed:', error.message);
-                }
-            }
-            
-            // Final status
-            if (this.callKitPlugin) {
-                console.log('✅ CallPlugin available:', typeof this.callKitPlugin);
-                console.log('Available methods:', Object.getOwnPropertyNames(this.callKitPlugin));
-            } else {
-                console.error('❌ CallPlugin not found after all attempts');
-                console.log('🔍 Available Capacitor plugins:', Object.keys(Capacitor.Plugins || {}));
-            }
-            
-        } catch (error) {
-            console.error('❌ Failed to initialize CallPlugin:', error);
-            console.error('Error details:', {
-                message: error.message,
-                stack: error.stack,
-                name: error.name
-            });
+            console.error('❌ CallPlugin singleton instance not found!');
         }
     }
 

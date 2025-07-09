@@ -5,7 +5,7 @@ import AVFoundation
 @objc(CallKitManager)
 public class CallKitManager: NSObject {
     // MARK: - Singleton
-    @objc public static let shared = CallKitManager()
+    @objc public static let shared: CallKitManager = CallKitManager()
 
     // MARK: - Properties
     private let provider: CXProvider
@@ -33,7 +33,12 @@ public class CallKitManager: NSObject {
 
     // MARK: - Public API
     @objc public func showTestCall() {
-        print("[CallKitManager] 🔥 showTestCall() called - starting CallKit sequence")
+        showIncomingCall(callerName: "Workflow Test", callerId: "test", isVideo: false)
+    }
+    
+    @objc public func showIncomingCall(callerName: String, callerId: String, isVideo: Bool) {
+        print("[CallKitManager] 🔥 showIncomingCall() called for: \(callerName)")
+        print("[CallKitManager] 📞 Call details - ID: \(callerId), Video: \(isVideo)")
         
         // Request audio session, otherwise the system may silence the ringtone in silent mode
         do {
@@ -46,18 +51,33 @@ public class CallKitManager: NSObject {
 
         let callUUID = UUID()
         let update = CXCallUpdate()
-        update.remoteHandle = CXHandle(type: .generic, value: "Workflow Test")
-        update.hasVideo = false
+        update.remoteHandle = CXHandle(type: .generic, value: callerName)
+        update.hasVideo = isVideo
+        update.localizedCallerName = callerName
         
         print("[CallKitManager] 📞 About to report incoming call with UUID: \(callUUID)")
+        print("[CallKitManager] 📞 Caller: \(callerName), Video: \(isVideo)")
 
         provider.reportNewIncomingCall(with: callUUID, update: update) { error in
             if let error = error {
                 print("[CallKitManager] ❌ Failed to report new incoming call: \(error.localizedDescription)")
                 print("[CallKitManager] ❌ Error details: \(error)")
+                
+                // Log common error reasons for debugging
+                let errorCode = (error as NSError).code
+                switch errorCode {
+                case 1: // CXErrorCodeIncomingCallError.unknown
+                    print("[CallKitManager] ❌ Unknown error - check entitlements and device capabilities")
+                case 2: // CXErrorCodeIncomingCallError.unentitled  
+                    print("[CallKitManager] ❌ Missing CallKit entitlements in app")
+                case 3: // CXErrorCodeIncomingCallError.callUUIDAlreadyExists
+                    print("[CallKitManager] ❌ Call UUID already exists")
+                default:
+                    print("[CallKitManager] ❌ Error code: \(errorCode)")
+                }
             } else {
-                print("[CallKitManager] ✅ Incoming test call successfully reported!")
-                print("[CallKitManager] 🎉 CallKit should now show the call interface (if on physical device with proper entitlements)")
+                print("[CallKitManager] ✅ Incoming call successfully reported for: \(callerName)")
+                print("[CallKitManager] 🎉 CallKit should now show the native call interface!")
             }
         }
     }

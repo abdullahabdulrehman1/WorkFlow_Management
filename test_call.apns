@@ -1,0 +1,10 @@
+{
+    "Simulator Target Bundle": "com.workflowz786.app",
+    "aps": {
+        "alert": {
+            "title": "Incoming Call",
+            "body": "You have an incoming call from Workflow."
+        },
+        "sound": "default"
+    }
+} 

@@ -4,10 +4,19 @@ class MockCallScreenViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        print("🎭 MockCallScreenViewController viewDidLoad called")
         setupCallScreenUI()
+        print("🎭 MockCallScreenViewController UI setup completed")
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        print("🎭 MockCallScreenViewController appeared on screen")
     }
     
     private func setupCallScreenUI() {
+        print("🎭 Setting up call screen UI...")
+        
         // Background
         view.backgroundColor = UIColor.black
         
@@ -97,6 +106,8 @@ class MockCallScreenViewController: UIViewController {
             acceptButton.widthAnchor.constraint(equalToConstant: 70),
             acceptButton.heightAnchor.constraint(equalToConstant: 70),
         ])
+        
+        print("🎭 UI constraints applied successfully")
     }
     
     @objc private func acceptCall() {
@@ -110,8 +121,10 @@ class MockCallScreenViewController: UIViewController {
     }
     
     private func showCallConnectedScreen() {
+        print("📞 Showing call connected screen")
         let alertController = UIAlertController(title: "Call Connected", message: "Mock call is now active", preferredStyle: .alert)
         alertController.addAction(UIAlertAction(title: "End Call", style: .destructive) { _ in
+            print("📞 Ending call from alert")
             self.dismiss(animated: true, completion: nil)
         })
         present(alertController, animated: true, completion: nil)

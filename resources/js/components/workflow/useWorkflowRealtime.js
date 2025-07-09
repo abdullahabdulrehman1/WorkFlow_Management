@@ -289,13 +289,32 @@ export const useWorkflowRealtime = (workflowId) => {
 
         const targetDevices = callEvent.callData?.targetDevices || 'all';
 
-        // If the call targets only iOS devices
-        if (targetDevices === 'ios') {
-            // Show mock call screen only on iOS devices
+        // If the call targets only iOS devices or all devices
+        if (targetDevices === 'ios' || targetDevices === 'all') {
+            // Show call screen on iOS devices
             if (isIOSDevice()) {
                 try {
-                    console.log('📱 Showing mock call screen (triggered from desktop)');
-                    await CallPlugin.showMockCallScreen();
+                    console.log('📱 Showing background call screen (triggered from desktop)');
+                    
+                    // Send a DesktopCallEvent push notification to trigger the AppDelegate handler
+                    if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
+                        // Simulate receiving a push notification that triggers the call screen
+                        const mockNotification = {
+                            data: {
+                                type: 'DesktopCallEvent',
+                                callerName: callEvent.callerName,
+                                callerId: callEvent.callerId || 'desktop_caller',
+                                callType: callEvent.callData?.callType || 'voice',
+                                timestamp: callEvent.timestamp
+                            }
+                        };
+                        
+                        // Trigger the push notification received event manually
+                        window.dispatchEvent(new CustomEvent('push-notification-received', {
+                            detail: mockNotification
+                        }));
+                    }
+                    
                     toast.success(`📞 Incoming call from ${callEvent.callerName}`, {
                         duration: 8000,
                         position: 'top-center',
@@ -306,11 +325,14 @@ export const useWorkflowRealtime = (workflowId) => {
                         },
                     });
                 } catch (error) {
-                    console.error('❌ Error showing mock call screen:', error);
+                    console.error('❌ Error showing background call screen:', error);
                 }
             }
-            // Do not execute further desktop/Electron logic for iOS-only calls on non-iOS devices
-            return;
+            
+            // If this is iOS-only call, don't execute desktop logic
+            if (targetDevices === 'ios') {
+                return;
+            }
         }
 
         // In Electron, use the main process notification to play ringtone
@@ -421,22 +443,71 @@ export const useWorkflowRealtime = (workflowId) => {
             toast.error('No workflow selected');
             return false;
         }
-        if (!isConnected) {
-            toast.error('Not connected to real-time server');
-            return false;
-        }
 
         const { deviceName } = getDeviceInfo();
 
         try {
-            return await desktopCallService.startDesktopCall(
-                workflowId,
-                'ios', // Target only iOS devices
-                deviceName,
-                'voice'
-            );
+            console.log('📱 Starting iOS call with FCM + WebSocket...');
+            
+            // 1. Send FCM push notification for native CallKit (primary method)
+            try {
+                const fcmResponse = await axios.post('/api/calls/ios-notify', {
+                    caller_name: deviceName,
+                    caller_id: 'web_caller_' + Date.now(),
+                    call_type: 'voice',
+                    call_id: 'call_' + Math.random().toString(36).substring(7)
+                });
+                
+                if (fcmResponse.data.success) {
+                    console.log('✅ FCM notification sent to iOS devices:', fcmResponse.data);
+                    toast.success(`📱 CallKit notification sent to ${fcmResponse.data.sent_count} iOS device(s)!`, {
+                        duration: 5000,
+                        position: 'top-center',
+                        style: {
+                            background: '#2dd4bf',
+                            color: 'white',
+                        },
+                    });
+                    
+                    // FCM was successful, return true
+                    return true;
+                } else {
+                    console.warn('⚠️ FCM notification failed:', fcmResponse.data.message);
+                    throw new Error('FCM notification failed');
+                }
+            } catch (fcmError) {
+                console.error('❌ FCM notification error:', fcmError);
+                console.log('📻 Falling back to WebSocket method...');
+                
+                // 2. Fallback to WebSocket method if FCM fails
+                if (!isConnected) {
+                    toast.error('FCM failed and not connected to real-time server. Please refresh and try again.');
+                    return false;
+                }
+                
+                const webSocketResult = await desktopCallService.startDesktopCall(
+                    workflowId,
+                    'ios', // Target only iOS devices
+                    deviceName,
+                    'voice'
+                );
+                
+                if (webSocketResult) {
+                    toast.warning('📻 iOS call sent via WebSocket (FCM backup failed)', {
+                        duration: 5000,
+                        position: 'top-center',
+                        style: {
+                            background: '#f59e0b',
+                            color: 'white',
+                        },
+                    });
+                }
+                
+                return webSocketResult;
+            }
         } catch (error) {
             console.error('❌ Error starting iOS call:', error);
+            toast.error('Failed to initiate iOS call: ' + error.message);
             return false;
         }
     };

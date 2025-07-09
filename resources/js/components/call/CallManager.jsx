@@ -5,29 +5,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-
-// Register our custom plugin (defined in CallPlugin.java)
-const CallPluginWeb = {
-  startCall: async ({ callerId, callerName, callType }) => {
-    console.log('Web fallback for startCall', { callerId, callerName, callType });
-    return { callId: Date.now().toString() };
-  },
-  endCall: async () => {
-    console.log('Web fallback for endCall');
-    return { success: true };
-  },
-  addListener: (eventName, callback) => {
-    console.log('Web fallback for addListener', eventName);
-    return { remove: () => {} };
-  },
-  removeAllListeners: () => {
-    console.log('Web fallback for removeAllListeners');
-  }
-};
-
-// Check if we're in native environment and use our custom plugin, otherwise use web fallback
-const CallPlugin = Capacitor.isNativePlatform() ? 
-  registerPlugin('CallPlugin') : CallPluginWeb;
+import { CallPlugin } from '../../utils/iOSSimpleCall'; // Import the singleton instance
 
 // Create context for call-related functionality
 const CallContext = createContext();
@@ -63,10 +41,28 @@ export const CallProvider = ({ children }) => {
             const { token } = await FCM.getToken();
             console.log('FCM Token:', token);
             
-            // Send the token to your server
+            // Generate keys for web push format (aes128gcm)
+            const generateWebPushKeys = () => {
+              // Generate random keys for aes128gcm format
+              const publicKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(65))));
+              const authToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+              return { publicKey, authToken };
+            };
+            
+            // Send the token to your server with platform information
             try {
-              await axios.post('/api/fcm/register', { token });
-              console.log('FCM token registered with server');
+              const platform = Capacitor.getPlatform(); // Gets 'ios', 'android', or 'web'
+              const { publicKey, authToken } = generateWebPushKeys();
+              
+              await axios.post('/api/fcm/register', { 
+                token,
+                platform: platform,
+                device_id: 'capacitor_' + Date.now(),
+                public_key: publicKey,
+                auth_token: authToken
+              });
+              console.log('FCM token registered with server for platform:', platform);
+              console.log('Web push keys generated and registered');
             } catch (error) {
               console.error('Error registering FCM token with server:', error);
             }
@@ -360,8 +356,27 @@ export const CallManager = () => {
     try {
       if (Capacitor.isNativePlatform()) {
         const { token } = await FCM.getToken();
-        await axios.post('/api/fcm/register', { token });
-        console.log('FCM token registered successfully');
+        const platform = Capacitor.getPlatform(); // Gets 'ios', 'android', or 'web'
+        
+        // Generate keys for web push format (aes128gcm)
+        const generateWebPushKeys = () => {
+          // Generate random keys for aes128gcm format
+          const publicKey = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(65))));
+          const authToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+          return { publicKey, authToken };
+        };
+        
+        const { publicKey, authToken } = generateWebPushKeys();
+        
+        await axios.post('/api/fcm/register', { 
+          token,
+          platform: platform,
+          device_id: 'capacitor_' + Date.now(),
+          public_key: publicKey,
+          auth_token: authToken
+        });
+        console.log('FCM token registered successfully for platform:', platform);
+        console.log('Web push keys generated and registered');
       }
     } catch (error) {
       console.error('Error registering with FCM:', error);

@@ -4,6 +4,9 @@ import WorkflowLayout from '../components/layout/WorkflowLayout';
 import useIsMobile from '../hooks/useIsMobile';
 import { Capacitor } from '@capacitor/core';
 import NotificationTest from '../components/NotificationTest';
+import { CallPlugin } from '../utils/iOSSimpleCall'; // Import the singleton instance
+import axios from 'axios';
+import { usePage } from '@inertiajs/react';
 
 // Improved detection of native environment
 const isNativeEnvironment = () => {
@@ -107,9 +110,10 @@ const getCallPlugin = () => {
 };
 
 // Get the appropriate plugin implementation
-const CallPlugin = getCallPlugin();
+const CallPluginInstance = getCallPlugin();
 
 const CallTest = () => {
+  const { csrf_token } = usePage().props;
   const [callerId, setCallerId] = useState('test-user-123');
   const [callerName, setCallerName] = useState('Test Caller');
   const [callType, setCallType] = useState('audio');
@@ -122,6 +126,10 @@ const CallTest = () => {
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [currentCountdown, setCurrentCountdown] = useState(0);
+
+  // FCM Debug states
+  const [fcmDebugLoading, setFcmDebugLoading] = useState(false);
+  const [fcmDebugResult, setFcmDebugResult] = useState(null);
 
   useEffect(() => {
     // Check if we're running on a native platform with Capacitor
@@ -139,7 +147,7 @@ const CallTest = () => {
           // Test if plugin is available
           try {
             console.log("[CallTest] Testing CallPlugin availability...");
-            await CallPlugin.endCall();
+            await CallPluginInstance.endCall();
             setIsCapacitorAvailable(true);
             setDebugInfo(prev => `${prev}\nCallPlugin detected and working!`);
             console.log("[CallTest] CallPlugin is registered and available");
@@ -209,7 +217,7 @@ const CallTest = () => {
       console.log("[CallTest] Initiating test call with:", { callerId, callerName, callType });
       
       // Use the plugin regardless of platform - the fallback will handle web case
-      const result = await CallPlugin.startCall({
+      const result = await CallPluginInstance.startCall({
         callerId,
         callerName,
         callType
@@ -233,7 +241,7 @@ const CallTest = () => {
       setDebugInfo(prev => `${prev}\nEnding call...`);
       
       // Use the plugin regardless of platform - the fallback will handle web case
-      const result = await CallPlugin.endCall();
+      const result = await CallPluginInstance.endCall();
       toast.success("Call ended successfully");
       setDebugInfo(prev => `${prev}\nCall ended successfully`);
       console.log("[CallTest] Call ended:", result);
@@ -256,6 +264,46 @@ const CallTest = () => {
     }
   };
 
+  // FCM Debug function to test iOS call notification
+  const testFCMCallNotification = async () => {
+    setFcmDebugLoading(true);
+    setFcmDebugResult(null);
+    
+    try {
+      const response = await axios.post('/api/debug/ios-call-test', {
+        caller_name: callerName, // Use the caller name from the form
+        _token: csrf_token // Include CSRF token
+      }, {
+        headers: {
+          'X-CSRF-TOKEN': csrf_token,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('FCM Debug Response:', response.data);
+      
+      setFcmDebugResult({
+        success: true,
+        data: response.data
+      });
+      
+      toast.success('FCM notification sent! Check iOS device.');
+    } catch (error) {
+      console.error('FCM Debug Error:', error);
+      
+      const errorData = error.response?.data || { error: error.message };
+      
+      setFcmDebugResult({
+        success: false,
+        error: errorData
+      });
+      
+      toast.error('FCM test failed: ' + (errorData.error || errorData.message || 'Unknown error'));
+    } finally {
+      setFcmDebugLoading(false);
+    }
+  };
+
   return (
     <WorkflowLayout breadcrumbText="Call Testing">
       <div className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
@@ -264,6 +312,34 @@ const CallTest = () => {
         {/* Add Windows Notification Test */}
         <div className="mb-6">
           <NotificationTest />
+        </div>
+
+        {/* FCM Debug Test */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="text-lg font-semibold text-blue-800 mb-3">FCM iOS CallKit Test</h3>
+          <p className="text-sm text-blue-600 mb-4">
+            Test FCM push notification to trigger iOS CallKit interface. Make sure your iOS device is registered and has the app backgrounded.
+          </p>
+          
+          <button
+            onClick={testFCMCallNotification}
+            disabled={fcmDebugLoading}
+            className={`w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${fcmDebugLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {fcmDebugLoading ? 'Sending FCM...' : 'Test FCM iOS Call Notification'}
+          </button>
+          
+          {/* FCM Debug Result Display */}
+          {fcmDebugResult && (
+            <div className={`mt-4 p-3 rounded-md border ${fcmDebugResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <h4 className={`text-sm font-semibold mb-2 ${fcmDebugResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                FCM Test Result:
+              </h4>
+              <pre className={`text-xs whitespace-pre-wrap overflow-auto max-h-40 ${fcmDebugResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                {JSON.stringify(fcmDebugResult.success ? fcmDebugResult.data : fcmDebugResult.error, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
         
         <div className="space-y-4">
