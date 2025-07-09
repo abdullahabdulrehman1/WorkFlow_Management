@@ -42,11 +42,11 @@
     },
     "CallPlugin": {
       "ios": {
-        "src": "CallPlugin",
+        "className": "CallPlugin",
         "enableCallKit": true
       },
       "android": {
-        "src": "CallPlugin"
+        "className": "CallPlugin"
       }
     }
   }
