@@ -1,131 +1,204 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
-// Try auto-discovery first
-let CallPlugin = Capacitor.Plugins.CallPlugin;
+/**
+ * Centralized CallPlugin manager for iOS CallKit integration
+ * This ensures consistent plugin registration across the app
+ */
+class CallPluginManager {
+    constructor() {
+        this.plugin = null;
+        this.isInitialized = false;
+        this.initializePlugin();
+    }
 
-// If auto-discovery doesn't work, try manual registration
-if (!CallPlugin) {
-    console.log('🔄 Auto-discovery failed, trying manual registration...');
-    CallPlugin = registerPlugin('CallPlugin');
+    initializePlugin() {
+        try {
+            const platform = Capacitor.getPlatform();
+            const isNative = Capacitor.isNativePlatform();
+            
+            console.log('📞 [CallPluginManager] Initializing for platform:', platform, 'Native:', isNative);
+            
+            if (!isNative) {
+                console.log('📞 [CallPluginManager] Not on native platform, using web fallback');
+                this.plugin = this.createWebFallback();
+                this.isInitialized = true;
+                return;
+            }
+
+            // For native platforms, try to get the CallPlugin
+            if (platform === 'ios') {
+                // Try auto-discovery first
+                if (Capacitor.Plugins && Capacitor.Plugins.CallPlugin) {
+                    console.log('📞 [CallPluginManager] ✅ Found CallPlugin via auto-discovery');
+                    this.plugin = Capacitor.Plugins.CallPlugin;
+                    this.isInitialized = true;
+                    return;
+                }
+
+                // Try manual registration
+                try {
+                    console.log('📞 [CallPluginManager] Attempting manual registration...');
+                    this.plugin = registerPlugin('CallPlugin');
+                    console.log('📞 [CallPluginManager] ✅ CallPlugin registered successfully');
+                    this.isInitialized = true;
+                    return;
+                } catch (error) {
+                    console.error('📞 [CallPluginManager] ❌ Manual registration failed:', error);
+                }
+            }
+
+            // Fallback for any issues
+            console.log('📞 [CallPluginManager] Using web fallback due to registration issues');
+            this.plugin = this.createWebFallback();
+            this.isInitialized = true;
+
+        } catch (error) {
+            console.error('📞 [CallPluginManager] ❌ Initialization failed:', error);
+            this.plugin = this.createWebFallback();
+            this.isInitialized = true;
+        }
+    }
+
+    createWebFallback() {
+        return {
+            startCall: async (options) => {
+                console.log('📞 [CallPluginManager] ⚠️ Web fallback startCall called with:', options);
+                
+                // Add platform and availability info
+                const debugInfo = {
+                    platform: Capacitor.getPlatform(),
+                    isNative: Capacitor.isNativePlatform(),
+                    options: options,
+                    timestamp: new Date().toISOString()
+                };
+                
+                console.log('📞 [CallPluginManager] Web fallback debug info:', debugInfo);
+                
+                // Return a promise that resolves like the native plugin would
+                return {
+                    success: true,
+                    callId: Date.now().toString(),
+                    platform: 'web-fallback',
+                    message: 'Web fallback used - native CallKit not available',
+                    debugInfo: debugInfo
+                };
+            },
+            endCall: async () => {
+                console.log('📞 [CallPluginManager] Web fallback endCall called');
+                return { success: true, platform: 'web-fallback' };
+            },
+            reportIncomingCall: async (options) => {
+                console.log('📞 [CallPluginManager] Web fallback reportIncomingCall called with:', options);
+                return {
+                    success: true,
+                    callId: Date.now().toString(),
+                    platform: 'web-fallback',
+                    message: 'Web fallback used - native CallKit not available'
+                };
+            }
+        };
+    }
+
+    getPlugin() {
+        if (!this.isInitialized) {
+            console.warn('📞 [CallPluginManager] Plugin not initialized yet');
+            return this.createWebFallback();
+        }
+        
+        // If we have a native plugin, wrap it with logging
+        if (this.isNativeCallKit()) {
+            console.log('📞 [CallPluginManager] ✅ Returning native iOS CallKit plugin');
+            
+            return {
+                startCall: async (options) => {
+                    console.log('📞 [CallPluginManager] 🎉 NATIVE startCall called with:', options);
+                    try {
+                        const result = await this.plugin.startCall(options);
+                        console.log('📞 [CallPluginManager] ✅ NATIVE startCall result:', result);
+                        return result;
+                    } catch (error) {
+                        console.error('📞 [CallPluginManager] ❌ NATIVE startCall error:', error);
+                        throw error;
+                    }
+                },
+                endCall: async () => {
+                    console.log('📞 [CallPluginManager] 🎉 NATIVE endCall called');
+                    try {
+                        const result = await this.plugin.endCall();
+                        console.log('📞 [CallPluginManager] ✅ NATIVE endCall result:', result);
+                        return result;
+                    } catch (error) {
+                        console.error('📞 [CallPluginManager] ❌ NATIVE endCall error:', error);
+                        throw error;
+                    }
+                },
+                reportIncomingCall: async (options) => {
+                    console.log('📞 [CallPluginManager] 🎉 NATIVE reportIncomingCall called with:', options);
+                    try {
+                        const result = await this.plugin.reportIncomingCall(options);
+                        console.log('📞 [CallPluginManager] ✅ NATIVE reportIncomingCall result:', result);
+                        return result;
+                    } catch (error) {
+                        console.error('📞 [CallPluginManager] ❌ NATIVE reportIncomingCall error:', error);
+                        throw error;
+                    }
+                }
+            };
+        }
+        
+        console.log('📞 [CallPluginManager] ⚠️ Returning web fallback plugin');
+        return this.plugin;
+    }
+
+    isAvailable() {
+        return this.isInitialized && this.plugin !== null;
+    }
+
+    isNativeCallKit() {
+        return Capacitor.isNativePlatform() && 
+               Capacitor.getPlatform() === 'ios' && 
+               this.plugin !== null && 
+               typeof this.plugin.startCall === 'function';
+    }
 }
 
-// Export with logging for debugging
-export { CallPlugin };
+// Create and export singleton instance
+const callPluginManager = new CallPluginManager();
 
-// Add debugging
-console.log('📱 CallPlugin setup:', {
-    autoDiscoveryAvailable: !!Capacitor.Plugins.CallPlugin,
-    finalPluginAvailable: !!CallPlugin,
-    platform: Capacitor.getPlatform(),
-    isNative: Capacitor.isNativePlatform()
-});
+// Export the plugin instance for backward compatibility
+export const CallPlugin = callPluginManager.getPlugin();
 
+// Export the manager for advanced usage
+export { callPluginManager };
+
+// Export convenience functions
 export async function handleCallButtonClick() {
-    console.log('📞 Call button clicked - showing WhatsApp-style notification...');
-    
     try {
-        // Check if we're on iOS
-        if (!window.Capacitor || !window.Capacitor.isNativePlatform()) {
-            console.log('🌐 Not on native platform, skipping call');
-            return;
-        }
+        const plugin = callPluginManager.getPlugin();
         
-        console.log('📱 Platform check passed - running on iOS native');
-        
-        // Check available plugins
-        const availablePlugins = Object.keys(window.Capacitor.Plugins);
-        console.log('🔍 Available plugins:', availablePlugins);
-        
-        // Try using LocalNotifications plugin which is already working
-        const localNotifications = window.Capacitor.Plugins.LocalNotifications;
-        if (localNotifications) {
-            console.log('📞 Using LocalNotifications plugin for call notification...');
+        if (callPluginManager.isNativeCallKit()) {
+            console.log('📞 [handleCallButtonClick] Using native iOS CallKit');
             
-            // First, request permissions
-            const permResult = await localNotifications.requestPermissions();
-            console.log('📞 Notification permissions:', permResult);
-            
-            // Schedule a call notification
-            const notificationId = Date.now();
-            await localNotifications.schedule({
-                notifications: [
-                    {
-                        title: "Incoming Call",
-                        body: "Mac Device (Desktop) is calling...",
-                        id: notificationId,
-                        schedule: { at: new Date(Date.now() + 1000) }, // Show in 1 second
-                        sound: 'default',
-                        attachments: [],
-                        actionTypeId: 'CALL_ACTIONS',
-                        extra: {
-                            callerName: 'Mac Device (Desktop)',
-                            callerId: 'desktop_001',
-                            type: 'incoming_call'
-                        }
-                    }
-                ]
+            const result = await plugin.startCall({
+                callerId: 'test-user-123',
+                callerName: 'Test Caller',
+                callType: 'audio'
             });
             
-            console.log('✅ Call notification scheduled successfully');
-            return;
+            console.log('📞 [handleCallButtonClick] Native CallKit result:', result);
+            return result;
+        } else {
+            console.log('📞 [handleCallButtonClick] Using web fallback');
+            const result = await plugin.startCall({
+                callerId: 'test-user-123',
+                callerName: 'Test Caller',
+                callType: 'audio'
+            });
+            console.log('📞 [handleCallButtonClick] Web fallback result:', result);
+            return result;
         }
-        
-        // Fallback: Check if CallPlugin is available
-        const callPluginAvailable = !!window.Capacitor.Plugins.CallPlugin;
-        console.log('🔍 CallPlugin available:', callPluginAvailable);
-        
-        if (!callPluginAvailable) {
-            console.log('❌ Neither LocalNotifications nor CallPlugin available');
-            return;
-        }
-        
-        // Debug the plugin object
-        const callPlugin = window.Capacitor.Plugins.CallPlugin;
-        console.log('🔍 CallPlugin object:', callPlugin);
-        console.log('🔍 CallPlugin methods:', Object.keys(callPlugin));
-        
-        console.log('📞 Calling CallPlugin.showCallNotification()...');
-        
-        // Call the new notification method
-        const result = await callPlugin.showCallNotification({
-            callerName: 'Mac Device (Desktop)',
-            callerId: 'desktop_001'
-        });
-        
-        console.log('✅ Call notification shown successfully:', result);
-        
     } catch (error) {
-        console.error('❌ Error in handleCallButtonClick:', error);
-        
-        // Try alternative methods for debugging
-        console.log('🔄 Trying alternative calling method...');
-        try {
-            const { Capacitor } = await import('@capacitor/core');
-            console.log('📦 Imported Capacitor:', !!Capacitor);
-            
-            console.log('📞 Trying with imported Capacitor...');
-            const result = await Capacitor.Plugins.CallPlugin.showCallNotification({
-                callerName: 'Mac Device (Desktop)',
-                callerId: 'desktop_001'
-            });
-            console.log('✅ Alternative method worked:', result);
-            
-        } catch (altError) {
-            console.error('❌ Alternative method also failed:', altError);
-            
-            // Try direct plugin access
-            console.log('🔄 Trying direct plugin access...');
-            try {
-                const direct = window.Capacitor.Plugins.CallPlugin;
-                console.log('📞 Direct plugin object:', direct);
-                const directResult = await direct.showCallNotification({
-                    callerName: 'Mac Device (Desktop)',
-                    callerId: 'desktop_001'
-                });
-                console.log('✅ Direct access worked:', directResult);
-            } catch (directError) {
-                console.error('❌ Direct access failed:', directError);
-            }
-        }
+        console.error('📞 [handleCallButtonClick] Error:', error);
+        throw error;
     }
 } 

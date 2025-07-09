@@ -42,6 +42,10 @@
     },
     "CallPlugin": {
       "ios": {
+        "src": "CallPlugin",
+        "enableCallKit": true
+      },
+      "android": {
         "src": "CallPlugin"
       }
     }

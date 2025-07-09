@@ -4,7 +4,7 @@ import WorkflowLayout from '../components/layout/WorkflowLayout';
 import useIsMobile from '../hooks/useIsMobile';
 import { Capacitor } from '@capacitor/core';
 import NotificationTest from '../components/NotificationTest';
-import { CallPlugin } from '../utils/iOSSimpleCall'; // Import the singleton instance
+import { callPluginManager } from '../utils/iOSSimpleCall'; // Import the centralized manager
 import axios from 'axios';
 import { usePage } from '@inertiajs/react';
 
@@ -33,85 +33,6 @@ const isNativeEnvironment = () => {
   return isCapacitorNative || isCordova || isMobileUA;
 };
 
-// Enhanced web fallback implementation with better console logging
-const CallPluginWeb = {
-  startCall: async ({ callerId, callerName, callType }) => {
-    console.log('[CallPluginWeb] Web fallback for startCall', { callerId, callerName, callType });
-    
-    // If we're on a mobile device, try to use direct tel: or facetime: protocol
-    if (isNativeEnvironment()) {
-      console.log('[CallPluginWeb] Attempting direct protocol call on mobile');
-      try {
-        // Format a dummy phone number for testing
-        const phoneNumber = '+12345678900';
-        
-        // Choose appropriate URL scheme based on call type
-        const scheme = callType === 'video' ? 'facetime:' : 'tel:';
-        const url = scheme + phoneNumber;
-        
-        // Create an invisible anchor element and trigger it
-        const callAnchor = document.createElement('a');
-        callAnchor.setAttribute('href', url);
-        callAnchor.setAttribute('target', '_system');
-        callAnchor.style.display = 'none';
-        document.body.appendChild(callAnchor);
-        
-        // Trigger a click on the anchor
-        callAnchor.click();
-        
-        // Clean up
-        setTimeout(() => {
-            document.body.removeChild(callAnchor);
-        }, 100);
-        
-        return { callId: Date.now().toString(), success: true, directProtocol: true };
-      } catch (err) {
-        console.error('[CallPluginWeb] Direct protocol call failed:', err);
-        // Continue with web fallback if direct call fails
-      }
-    }
-    
-    // Web fallback implementation
-    return { callId: Date.now().toString(), success: true };
-  },
-  endCall: async () => {
-    console.log('[CallPluginWeb] Web fallback for endCall');
-    return { success: true };
-  }
-};
-
-// Get the appropriate CallPlugin implementation
-const getCallPlugin = () => {
-  try {
-    // Check if native plugin is available
-    if (isNativeEnvironment() && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CallPlugin) {
-      console.log('[CallTest] Using native CallPlugin');
-      return window.Capacitor.Plugins.CallPlugin;
-    }
-    
-    // Try native plugin through dynamic import (alternative registration)
-    if (isNativeEnvironment() && window.Capacitor) {
-      try {
-        const { registerPlugin } = require('@capacitor/core');
-        const nativePlugin = registerPlugin('CallPlugin');
-        console.log('[CallTest] Registered native CallPlugin dynamically');
-        return nativePlugin;
-      } catch (err) {
-        console.warn('[CallTest] Failed to register native plugin:', err);
-      }
-    }
-    
-    console.log('[CallTest] Using web fallback for CallPlugin');
-    return CallPluginWeb;
-  } catch (err) {
-    console.error('[CallTest] Error setting up CallPlugin:', err);
-    return CallPluginWeb;
-  }
-};
-
-// Get the appropriate plugin implementation
-const CallPluginInstance = getCallPlugin();
-
 const CallTest = () => {
   const { csrf_token } = usePage().props;
   const [callerId, setCallerId] = useState('test-user-123');
@@ -139,28 +60,43 @@ const CallTest = () => {
         const isNative = Capacitor.isNativePlatform();
         const platform = Capacitor.getPlatform();
         
-        setDebugInfo(`Platform: ${platform}, Native: ${isNative ? 'Yes' : 'No'}`);
+        let debugText = `Platform: ${platform}, Native: ${isNative ? 'Yes' : 'No'}`;
         
-        if (isNative) {
-          console.log("[CallTest] Running on native platform:", platform);
-          
-          // Test if plugin is available
-          try {
-            console.log("[CallTest] Testing CallPlugin availability...");
-            await CallPluginInstance.endCall();
+        // Check if CallPluginManager is properly initialized
+        const isCallKitAvailable = callPluginManager.isNativeCallKit();
+        const isPluginAvailable = callPluginManager.isAvailable();
+        
+        if (isNative && platform === 'ios') {
+          if (isCallKitAvailable) {
+            debugText += '\n✅ iOS detected - Native CallKit ready!';
+            debugText += '\n📞 Tap call button to see native iOS call screen';
             setIsCapacitorAvailable(true);
-            setDebugInfo(prev => `${prev}\nCallPlugin detected and working!`);
-            console.log("[CallTest] CallPlugin is registered and available");
-          } catch (err) {
-            console.error("[CallTest] Error testing CallPlugin:", err);
-            setDebugInfo(prev => `${prev}\nError with CallPlugin: ${err.message}`);
+          } else {
+            debugText += '\n⚠️ iOS detected but CallKit not available';
+            debugText += '\n🔧 Will use web fallback';
             setIsCapacitorAvailable(false);
           }
+        } else if (isNative && platform === 'android') {
+          debugText += '\n✅ Android detected - native plugin available';
+          setIsCapacitorAvailable(isPluginAvailable);
         } else {
-          console.log("[CallTest] Running in web mode - will use web fallback");
+          debugText += '\n⚠️ Web platform - using fallback methods';
           setIsCapacitorAvailable(false);
-          setDebugInfo(prev => `${prev}\nRunning in web mode - using fallback`);
         }
+        
+        debugText += `\n🔧 Plugin Manager Status: ${isPluginAvailable ? 'Ready' : 'Not Ready'}`;
+        debugText += `\n📱 CallKit Available: ${isCallKitAvailable ? 'Yes' : 'No'}`;
+        
+        setDebugInfo(debugText);
+        
+        console.log("[CallTest] Plugin manager status:", {
+          platform,
+          isNative,
+          isCallKitAvailable,
+          isPluginAvailable,
+          pluginManager: callPluginManager
+        });
+        
       } catch (error) {
         console.error("[CallTest] Error in Capacitor detection:", error);
         setDebugInfo(prev => `${prev}\nError: ${error.message}`);
@@ -212,20 +148,48 @@ const CallTest = () => {
   const initiateCallNow = async () => {
     try {
       setIsLoading(true);
-      setDebugInfo(prev => `${prev}\nAttempting to start call...`);
+      const platform = Capacitor.getPlatform();
+      const isNative = Capacitor.isNativePlatform();
+      const isCallKitAvailable = callPluginManager.isNativeCallKit();
       
-      console.log("[CallTest] Initiating test call with:", { callerId, callerName, callType });
+      if (isNative && platform === 'ios' && isCallKitAvailable) {
+        setDebugInfo(prev => `${prev}\n📞 Triggering native iOS CallKit interface...`);
+        toast.info('🎉 Showing native iOS CallKit screen!');
+      } else {
+        setDebugInfo(prev => `${prev}\nUsing fallback method (${platform} platform)...`);
+        toast.info('Using fallback call method');
+      }
       
-      // Use the plugin regardless of platform - the fallback will handle web case
-      const result = await CallPluginInstance.startCall({
+      console.log("[CallTest] Initiating test call with:", { 
+        callerId, 
+        callerName, 
+        callType, 
+        platform, 
+        isNative,
+        isCallKitAvailable
+      });
+      
+      // Use the centralized plugin manager
+      const plugin = callPluginManager.getPlugin();
+      const result = await plugin.startCall({
         callerId,
         callerName,
         callType
       });
       
-      toast.success(`Call initiated with ID: ${result.callId}`);
-      setDebugInfo(prev => `${prev}\nCall started successfully with ID: ${result.callId}`);
-      console.log("[CallTest] Call started:", result);
+      if (isCallKitAvailable) {
+        toast.success(`🎉 Native iOS CallKit interface shown!`);
+        setDebugInfo(prev => `${prev}\n✅ Native iOS CallKit displayed successfully!`);
+        setDebugInfo(prev => `${prev}\nCall ID: ${result.callId || 'N/A'}`);
+        setDebugInfo(prev => `${prev}\nPlatform: ${result.platform || 'ios-callkit'}`);
+      } else {
+        toast.success(`Call initiated: ${result.message || result.platform}`);
+        setDebugInfo(prev => `${prev}\nCall started with fallback method`);
+        setDebugInfo(prev => `${prev}\nCall ID: ${result.callId}`);
+        setDebugInfo(prev => `${prev}\nPlatform: ${result.platform}`);
+      }
+      
+      console.log("[CallTest] Call result:", result);
     } catch (err) {
       console.error("[CallTest] Error starting call:", err);
       toast.error("Failed to initiate call: " + (err.message || "Unknown error"));
@@ -240,8 +204,10 @@ const CallTest = () => {
       setIsLoading(true);
       setDebugInfo(prev => `${prev}\nEnding call...`);
       
-      // Use the plugin regardless of platform - the fallback will handle web case
-      const result = await CallPluginInstance.endCall();
+      // Use the centralized plugin manager
+      const plugin = callPluginManager.getPlugin();
+      const result = await plugin.endCall();
+      
       toast.success("Call ended successfully");
       setDebugInfo(prev => `${prev}\nCall ended successfully`);
       console.log("[CallTest] Call ended:", result);
@@ -266,30 +232,64 @@ const CallTest = () => {
 
   // FCM Debug function to test iOS call notification
   const testFCMCallNotification = async () => {
+    console.log('🔔 [CallTest] ===== FCM TEST BUTTON CLICKED =====');
+    console.log('🔔 [CallTest] 📋 Test parameters:', {
+      callerName,
+      csrf_token: csrf_token ? 'Present' : 'Missing',
+      timestamp: new Date().toISOString()
+    });
+    
     setFcmDebugLoading(true);
     setFcmDebugResult(null);
     
     try {
-      const response = await axios.post('/api/debug/ios-call-test', {
+      console.log('🔔 [CallTest] 🚀 Sending FCM test request to server...');
+      
+      const requestData = {
         caller_name: callerName, // Use the caller name from the form
         _token: csrf_token // Include CSRF token
-      }, {
+      };
+      
+      console.log('🔔 [CallTest] 📤 Request data:', JSON.stringify(requestData, null, 2));
+      console.log('🔔 [CallTest] 📡 Making POST request to /api/debug/ios-call-test...');
+      
+      const response = await axios.post('/api/debug/ios-call-test', requestData, {
         headers: {
           'X-CSRF-TOKEN': csrf_token,
           'Content-Type': 'application/json'
         }
       });
       
-      console.log('FCM Debug Response:', response.data);
+      console.log('🔔 [CallTest] ✅ ===== FCM REQUEST SUCCESSFUL =====');
+      console.log('🔔 [CallTest] 📥 Server response:', JSON.stringify(response.data, null, 2));
+      console.log('🔔 [CallTest] 📊 Response status:', response.status);
+      console.log('🔔 [CallTest] 📊 Response headers:', response.headers);
       
       setFcmDebugResult({
         success: true,
         data: response.data
       });
       
-      toast.success('FCM notification sent! Check iOS device.');
+      toast.success('🎉 FCM notification sent! Check iOS device for CallKit screen.', {
+        duration: 5000,
+        style: {
+          background: '#10b981',
+          color: 'white',
+          fontSize: '16px',
+        },
+      });
+      
+      console.log('🔔 [CallTest] ✅ FCM test completed successfully');
+      console.log('🔔 [CallTest] 💬 Now waiting for iOS device to receive push notification...');
+      console.log('🔔 [CallTest] 📱 Expected: iOS CallKit should appear with call screen');
+      
     } catch (error) {
-      console.error('FCM Debug Error:', error);
+      console.error('🔔 [CallTest] ❌ ===== FCM REQUEST FAILED =====');
+      console.error('🔔 [CallTest] ❌ Error object:', error);
+      console.error('🔔 [CallTest] ❌ Error message:', error.message);
+      console.error('🔔 [CallTest] ❌ Error response:', error.response?.data);
+      console.error('🔔 [CallTest] ❌ Error status:', error.response?.status);
+      console.error('🔔 [CallTest] ❌ Error headers:', error.response?.headers);
       
       const errorData = error.response?.data || { error: error.message };
       
@@ -298,9 +298,19 @@ const CallTest = () => {
         error: errorData
       });
       
-      toast.error('FCM test failed: ' + (errorData.error || errorData.message || 'Unknown error'));
+      toast.error(`❌ FCM test failed: ${errorData.error || errorData.message || 'Unknown error'}`, {
+        duration: 8000,
+        style: {
+          background: '#dc2626',
+          color: 'white',
+          fontSize: '14px',
+        },
+      });
+      
+      console.error('🔔 [CallTest] ❌ FCM test failed with error:', errorData);
     } finally {
       setFcmDebugLoading(false);
+      console.log('🔔 [CallTest] 🏁 FCM test function completed');
     }
   };
 
@@ -397,24 +407,29 @@ const CallTest = () => {
                 className="w-full mr-3"
                 disabled={isTimerRunning || isLoading}
               />
-              <div className="w-12 text-center font-medium">{delaySeconds}s</div>
+              <span className="text-sm font-medium text-gray-700 min-w-[3rem]">{delaySeconds}s</span>
             </div>
           </div>
           
-          {/* Timer display when active */}
+          {/* Timer Display */}
           {isTimerRunning && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 text-center">
-              <div className="text-2xl font-bold text-blue-700">{currentCountdown}</div>
-              <div className="text-sm text-blue-600">Seconds until call notification</div>
+            <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-lg font-bold text-yellow-800">
+                Starting call in {currentCountdown} seconds...
+              </p>
+              <p className="text-sm text-yellow-600 mt-1">
+                You can switch to another app now to test background calling
+              </p>
               <button
                 onClick={cancelTimer}
-                className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+                className="mt-2 px-3 py-1 bg-red-500 text-white rounded-md text-sm hover:bg-red-600"
               >
                 Cancel
               </button>
             </div>
           )}
           
+          {/* Call Controls */}
           <div className="flex gap-4 pt-4">
             <button
               onClick={startDelayedCall}
@@ -434,13 +449,16 @@ const CallTest = () => {
           </div>
         </div>
         
+        {/* Status and Debug Section */}
         <div className="mt-8 p-4 bg-gray-50 rounded-md border border-gray-200">
           <h3 className="text-lg font-semibold mb-2">Testing Status</h3>
           <p className="text-sm text-gray-600">
-            {isCapacitorAvailable ? (
-              <span className="text-green-600 font-medium">✓ CallPlugin detected - Native call testing available</span>
+            {callPluginManager.isNativeCallKit() ? (
+              <span className="text-green-600 font-medium">✅ Native iOS CallKit Ready!</span>
+            ) : callPluginManager.isAvailable() ? (
+              <span className="text-amber-600 font-medium">⚠️ Plugin available but not native CallKit</span>
             ) : (
-              <span className="text-amber-600 font-medium">⚠ Running in web mode or plugin not available</span>
+              <span className="text-amber-600 font-medium">⚠️ Using web fallback methods</span>
             )}
           </p>
           <p className="text-xs text-gray-500 mt-2">

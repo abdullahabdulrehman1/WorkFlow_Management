@@ -72,11 +72,47 @@ export const CallProvider = ({ children }) => {
           
           // Listen for incoming push notifications (calls)
           PushNotifications.addListener('pushNotificationReceived', (notification) => {
-            console.log('Push notification received', notification);
+            console.log('📱 [CallManager] 📩 ===== PUSH NOTIFICATION RECEIVED =====');
+            console.log('📱 [CallManager] 📩 Full notification object:', JSON.stringify(notification, null, 2));
+            console.log('📱 [CallManager] 📊 Notification data type:', notification.data?.type);
+            console.log('📱 [CallManager] 🎯 TriggerCallKit flag:', notification.data?.triggerCallKit);
+            console.log('📱 [CallManager] 🔍 All notification data keys:', Object.keys(notification.data || {}));
             
-            if (notification.data?.type === 'call') {
-              handleIncomingCall(notification.data);
+            // Handle different types of call notifications
+            const isCallNotification = notification.data?.type === 'call' || 
+                                      notification.data?.type === 'ios_call' || 
+                                      notification.data?.triggerCallKit === 'true' ||
+                                      notification.data?.triggerCallKit === true;
+            
+            console.log('📱 [CallManager] 🔍 Is call notification?', isCallNotification);
+            
+            if (isCallNotification) {
+              console.log('📞 [CallManager] 🎉 ===== CALL NOTIFICATION DETECTED =====');
+              console.log('📞 [CallManager] 📋 Extracting call data...');
+              
+              const extractedCallData = {
+                type: notification.data.type,
+                callerId: notification.data.callerId || notification.data.from || 'unknown',
+                callerName: notification.data.callerName || notification.data.caller_name || 'Unknown Caller',
+                callType: notification.data.callType || notification.data.call_type || 'audio',
+                triggerCallKit: notification.data.triggerCallKit,
+                callId: notification.data.callId || Date.now().toString()
+              };
+              
+              console.log('📞 [CallManager] 📋 Extracted call data:', JSON.stringify(extractedCallData, null, 2));
+              console.log('📞 [CallManager] 🚀 About to call handleIncomingCall...');
+              
+              handleIncomingCall(extractedCallData);
+              
+              console.log('📞 [CallManager] ✅ handleIncomingCall called successfully');
+            } else {
+              console.log('📱 [CallManager] ❌ ===== NOT A CALL NOTIFICATION =====');
+              console.log('📱 [CallManager] 📊 Notification type was:', notification.data?.type);
+              console.log('📱 [CallManager] 📊 TriggerCallKit was:', notification.data?.triggerCallKit);
+              console.log('📱 [CallManager] 📊 Available data:', notification.data);
             }
+            
+            console.log('📱 [CallManager] 📩 ===== PUSH NOTIFICATION PROCESSING COMPLETED =====');
           });
 
           // Add listener for our custom CallPlugin events
@@ -171,47 +207,179 @@ export const CallProvider = ({ children }) => {
 
   // Handle an incoming call
   const handleIncomingCall = (callData) => {
-    console.log('Incoming call data:', callData);
+    console.log('📞 [CallManager] 🎯 ===== HANDLE INCOMING CALL STARTED =====');
+    console.log('📞 [CallManager] 📥 Input call data:', JSON.stringify(callData, null, 2));
     
-    // Update call state
-    setCallState({
-      isIncomingCall: true,
-      callerId: callData.callerId || callData.from,
-      callerName: callData.callerName || 'Unknown Caller',
-      callType: callData.callType || 'audio',
-      callStartTime: new Date(),
-      callId: callData.callId || Date.now().toString(),
-      callStatus: 'ringing'
-    });
+    try {
+      // Extract call information with fallbacks
+      const callInfo = {
+        callerId: callData.callerId || callData.from || 'unknown',
+        callerName: callData.callerName || callData.caller_name || 'Unknown Caller',
+        callType: callData.callType || callData.call_type || 'audio',
+        callId: callData.callId || callData.call_id || Date.now().toString()
+      };
+      
+      console.log('📞 [CallManager] 🔧 Processed call info:', JSON.stringify(callInfo, null, 2));
+      
+      // Update call state
+      console.log('📞 [CallManager] 📝 Updating call state...');
+      setCallState({
+        isIncomingCall: true,
+        callerId: callInfo.callerId,
+        callerName: callInfo.callerName,
+        callType: callInfo.callType,
+        callStartTime: new Date(),
+        callId: callInfo.callId,
+        callStatus: 'ringing'
+      });
+      console.log('📞 [CallManager] ✅ Call state updated successfully');
 
-    // Show call notification
-    showCallNotification(callData);
+      // Show call notification - this should trigger CallKit on iOS
+      console.log('📞 [CallManager] 🎯 About to call showCallNotification...');
+      console.log('📞 [CallManager] 📋 Passing call info to showCallNotification:', JSON.stringify(callInfo, null, 2));
+      
+      showCallNotification(callInfo).then((result) => {
+        console.log('📞 [CallManager] ✅ showCallNotification completed with result:', result);
+      }).catch((error) => {
+        console.error('📞 [CallManager] ❌ showCallNotification failed with error:', error);
+      });
 
-    // Play ringtone
-    playRingtone();
+      // Play ringtone (fallback for non-CallKit scenarios)
+      console.log('📞 [CallManager] 🔊 Starting ringtone as fallback...');
+      const ringtoneAudio = playRingtone();
+      console.log('📞 [CallManager] 🔊 Ringtone started:', ringtoneAudio ? 'Success' : 'Failed');
+      
+      console.log('📞 [CallManager] 🎯 ===== HANDLE INCOMING CALL COMPLETED =====');
+      
+    } catch (error) {
+      console.error('📞 [CallManager] ❌ ===== ERROR IN HANDLE INCOMING CALL =====');
+      console.error('📞 [CallManager] ❌ Error:', error);
+      console.error('📞 [CallManager] ❌ Call data was:', JSON.stringify(callData, null, 2));
+      
+      toast.error(`❌ Failed to handle incoming call: ${error.message}`, {
+        duration: 5000,
+        position: 'top-center'
+      });
+      
+      console.error('📞 [CallManager] ❌ ===== ERROR HANDLING COMPLETED =====');
+    }
   };
 
   // Play ringtone for incoming calls
   const playRingtone = () => {
-    const audio = new Audio('/sounds/ringtone.mp3');
-    audio.loop = true;
-    audio.play().catch(error => {
-      console.error('Error playing ringtone:', error);
-    });
-    return audio;
+    try {
+      const audio = new Audio('/sounds/ringtone.mp3');
+      audio.loop = true;
+      audio.play().then(() => {
+        console.log('📞 [CallManager] ✅ Ringtone started successfully');
+      }).catch(error => {
+        console.error('📞 [CallManager] ❌ Error playing ringtone:', error);
+      });
+      return audio;
+    } catch (error) {
+      console.error('📞 [CallManager] ❌ Error creating ringtone audio:', error);
+      return null;
+    }
   };
 
   // Show WhatsApp-like call notification
   const showCallNotification = async (callData) => {
+    console.log('📞 [CallManager] 🔔 ===== SHOW CALL NOTIFICATION STARTED =====');
+    console.log('📞 [CallManager] 📥 Input callData:', JSON.stringify(callData, null, 2));
+    
     try {
-      // Use our native CallPlugin for call notifications
-      await CallPlugin.startCall({
-        callerId: callData.callerId || callData.from,
-        callerName: callData.callerName || 'Unknown Caller',
-        callType: callData.callType || 'audio'
-      });
+      // Check if we're on iOS and CallKit is available
+      const platform = Capacitor.getPlatform();
+      const isNative = Capacitor.isNativePlatform();
+      
+      console.log('📞 [CallManager] 🔍 Platform check:', { platform, isNative });
+      console.log('📞 [CallManager] 🔍 Capacitor plugins available:', Object.keys(Capacitor.Plugins || {}));
+      
+      if (platform === 'ios' && isNative) {
+        console.log('📞 [CallManager] 🎉 iOS detected - triggering native CallKit interface!');
+        
+        // Use our centralized callPluginManager instead of direct CallPlugin
+        console.log('📞 [CallManager] 🔌 Getting plugin from callPluginManager...');
+        
+        // Import callPluginManager
+        const { callPluginManager } = await import('../../utils/iOSSimpleCall');
+        console.log('📞 [CallManager] ✅ callPluginManager imported successfully');
+        
+        const plugin = callPluginManager.getPlugin();
+        console.log('📞 [CallManager] 🔌 Plugin obtained:', plugin ? 'Success' : 'Failed');
+        console.log('📞 [CallManager] 🔌 Plugin methods:', plugin ? Object.keys(plugin) : 'No plugin');
+        
+        if (!plugin) {
+          throw new Error('CallPlugin not available from callPluginManager');
+        }
+
+        console.log('📞 [CallManager] 🎯 About to call plugin.startCall with:');
+        const startCallParams = {
+          callerId: callData.callerId,
+          callerName: callData.callerName,
+          callType: callData.callType || 'audio'
+        };
+        console.log('📞 [CallManager] 📋 StartCall params:', JSON.stringify(startCallParams, null, 2));
+
+        console.log('📞 [CallManager] 🚀 Calling plugin.startCall...');
+        const result = await plugin.startCall(startCallParams);
+        
+        console.log('📞 [CallManager] 🎉 NATIVE iOS CALLKIT TRIGGERED SUCCESSFULLY!');
+        console.log('📞 [CallManager] ✅ CallKit result:', JSON.stringify(result, null, 2));
+        
+        // Show success toast
+        toast.success(`🎉 Native iOS CallKit shown for ${callData.callerName}!`, {
+          duration: 3000,
+          position: 'top-center',
+          style: {
+            background: '#10b981',
+            color: 'white',
+            fontSize: '16px',
+          },
+        });
+        
+        console.log('📞 [CallManager] 🔔 ===== SHOW CALL NOTIFICATION COMPLETED SUCCESSFULLY =====');
+        return result;
+        
+      } else {
+        console.log('📞 [CallManager] ⚠️ Not iOS or not native - using fallback notification');
+        console.log('📞 [CallManager] 📊 Platform details:', { platform, isNative });
+        
+        // Fallback for non-iOS platforms
+        toast.success(`📞 Incoming call from ${callData.callerName}`, {
+          duration: 10000,
+          position: 'top-center',
+          style: {
+            background: '#059669',
+            color: 'white',
+            fontSize: '16px',
+          },
+        });
+        
+        console.log('📞 [CallManager] 🔔 ===== SHOW CALL NOTIFICATION COMPLETED (FALLBACK) =====');
+        return { success: false, reason: 'not-ios-native' };
+      }
     } catch (error) {
-      console.error('Error showing call notification:', error);
+      console.error('📞 [CallManager] ❌ ===== ERROR IN SHOW CALL NOTIFICATION =====');
+      console.error('📞 [CallManager] ❌ Error object:', error);
+      console.error('📞 [CallManager] ❌ Error message:', error.message);
+      console.error('📞 [CallManager] ❌ Error stack:', error.stack);
+      console.error('📞 [CallManager] ❌ Error name:', error.name);
+      console.error('📞 [CallManager] ❌ CallData was:', JSON.stringify(callData, null, 2));
+      
+      // Show error toast with detailed info
+      toast.error(`❌ CallKit failed: ${error.message}`, {
+        duration: 8000,
+        position: 'top-center',
+        style: {
+          background: '#dc2626',
+          color: 'white',
+          fontSize: '14px',
+        },
+      });
+      
+      console.error('📞 [CallManager] ❌ ===== ERROR HANDLING COMPLETED =====');
+      throw error;
     }
   };
 

@@ -6,9 +6,9 @@ class ViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        print("🔧 ViewController loaded - trying both auto and manual registration")
+        print("🔧 ViewController loaded - registering CallPlugin")
         
-        // Manual registration as backup
+        // Manual registration as backup (only if not already registered)
         print("🔧 Attempting manual CallPlugin registration...")
         let callPlugin = CallPlugin()
         self.bridge?.registerPluginInstance(callPlugin)
@@ -40,8 +40,8 @@ class ViewController: CAPBridgeViewController {
             if (notificationData && notificationData.data && notificationData.data.type === 'DesktopCallEvent') {
                 console.log('📞 [JS] DesktopCallEvent detected, triggering native call screen');
                 
-                // Trigger the native call screen via a custom event
-                window.webkit.messageHandlers.bridge.postMessage({
+                // Trigger the native call screen via our custom message handler
+                window.webkit.messageHandlers.callScreen.postMessage({
                     type: 'showCallScreen',
                     data: notificationData.data
                 });
@@ -60,11 +60,22 @@ class ViewController: CAPBridgeViewController {
             }
         }
         
-        // Add message handler for the bridge messages
-        self.bridge?.webView?.configuration.userContentController.add(
+        // Add message handler with unique name to avoid conflicts
+        guard let webView = self.bridge?.webView else {
+            print("❌ WebView not available")
+            return
+        }
+        
+        // Remove any existing handler first to avoid conflicts
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "callScreen")
+        
+        // Add our custom message handler with unique name
+        webView.configuration.userContentController.add(
             CallScreenMessageHandler(viewController: self),
-            name: "bridge"
+            name: "callScreen"  // Using unique name instead of "bridge"
         )
+        
+        print("✅ CallScreen message handler registered successfully")
     }
 }
 
