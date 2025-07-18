@@ -3,10 +3,10 @@
   "appName": "workflow",
   "webDir": "public/build",
   "server": {
-    "url": "http://192.168.20.65:8000",
-    "cleartext": true,
-    "androidScheme": "http"
-  },
+  "url": "https://6535554c7a03.ngrok-free.app",
+  "cleartext": false,
+  "androidScheme": "https"
+},
   "android": {
     "allowMixedContent": true
   },

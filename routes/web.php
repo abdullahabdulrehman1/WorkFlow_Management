@@ -11,6 +11,25 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+// Vite asset proxy for ngrok (prevents Mixed Content errors)
+Route::get('/vite-proxy/{path}', function (Request $request, $path) {
+    $viteUrl = "http://192.168.20.65:5173/{$path}";
+    
+    try {
+        $response = file_get_contents($viteUrl);
+        $contentType = 'text/javascript';
+        
+        if (str_ends_with($path, '.css')) {
+            $contentType = 'text/css';
+        } elseif (str_ends_with($path, '.js') || str_ends_with($path, '.jsx')) {
+            $contentType = 'text/javascript';
+        }
+        
+        return response($response)->header('Content-Type', $contentType);
+    } catch (Exception $e) {
+        return response('Vite asset not found', 404);
+    }
+})->where('path', '.*');
 
 // Web routes with normal CSRF protection
 Route::get('/', function () {

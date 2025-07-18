@@ -39,8 +39,9 @@
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         
-        @viteReactRefresh
-        @vite(['resources/js/app.jsx', 'resources/css/app.css'])
+        {{-- Use built assets to avoid Mixed Content errors --}}
+        <link rel="stylesheet" href="{{ asset('build/assets/app-BbT31sAF.css') }}">
+        <script type="module" src="{{ asset('build/assets/app-D7UpiX9H.js') }}"></script>
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
